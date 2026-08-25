@@ -13,8 +13,8 @@ https://snow-season-where-to-live-api.world4jason.workers.dev
 From the repository:
 
 ```bash
+git pull --ff-only
 cd cloudflare
-npx wrangler login
 npx wrangler deploy
 ```
 
@@ -25,7 +25,17 @@ npx wrangler secret put SERPAPI_KEY
 npx wrangler secret put ADMIN_TOKEN
 ```
 
-The KV namespace is already configured in `wrangler.jsonc`.
+The KV namespace and public live-search rate limiter are configured in `wrangler.jsonc`.
+
+## Production verification
+
+After every Worker deployment run:
+
+```bash
+node smoke-test.mjs
+```
+
+The smoke test verifies health, SerpApi/account status, cached latest data, strict invalid-date rejection, one real Sapporo Teine search, result schema, budget enforcement, coordinates, and Google Maps URLs. The real-search part uses at most one SerpApi search when its 6-hour cache is cold.
 
 ## Endpoints
 
@@ -60,19 +70,20 @@ curl -X POST \
 
 Validation:
 
-- stay: 1–14 nights
+- stay: 1–14 valid calendar nights
 - adults: 1–6
 - nightly budget: TWD 500–30,000
 
 Protection:
 
 - same resort + dates + adults + budget is cached in KV for 6 hours
+- the daily refresh seeds the same cache for default query conditions
 - public cache-miss SerpApi calls are capped at 80/month
 - Worker Rate Limiting binding protects rapid repeated calls
 
 ### `GET /api/status`
 
-Returns backend/SerpApi quota information without exposing the API key.
+Returns backend/SerpApi quota information without exposing the API key. The SerpApi Account API call itself is free and does not consume search quota.
 
 ### `POST /api/refresh`
 
@@ -84,7 +95,7 @@ curl -X POST \
   https://snow-season-where-to-live-api.world4jason.workers.dev/api/refresh
 ```
 
-Use this sparingly because it consumes one SerpApi search per configured resort.
+Use this sparingly because it consumes one SerpApi search per configured resort when SerpApi does not serve its own cache.
 
 ## Schedule
 
