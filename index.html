@@ -7,6 +7,7 @@
   <link rel="preconnect" href="https://unpkg.com" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
   <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="enhancements.css" />
 </head>
 <body>
   <header class="topbar">
@@ -25,7 +26,7 @@
       <div class="search-copy">
         <p class="eyebrow">SKI STAY WATCHER</p>
         <h1>雪季住哪裡？</h1>
-        <p>同一組日期與預算，比較安比、越後湯澤、斑尾與手稻現在還有哪些住宿。</p>
+        <p>同一組預算，比較安比、越後湯澤、斑尾、手稻與野澤溫泉現在還有哪些住宿。</p>
       </div>
 
       <div class="search-bar" aria-label="目前搜尋條件">
@@ -36,11 +37,11 @@
             <strong id="searchDestination">全部雪場</strong>
           </div>
         </div>
-        <div class="search-field">
+        <div class="search-field date-search-field">
           <span class="field-icon">◫</span>
-          <div>
+          <div class="date-search-content">
             <span class="field-label">入住日期</span>
-            <strong id="searchDates">—</strong>
+            <div id="searchDates" class="date-picker-host">—</div>
           </div>
         </div>
         <div class="search-field">
@@ -141,7 +142,7 @@
         <div class="hotel-results" id="hotelResults"></div>
         <section class="empty" id="emptyState" hidden>
           <h2>目前沒有符合條件的住宿</h2>
-          <p>Cloudflare Worker 第一次完成資料更新後，住宿會自動出現在這裡。</p>
+          <p>Cloudflare Worker 完成資料更新後，住宿會自動出現在這裡。</p>
         </section>
       </div>
 
@@ -162,5 +163,6 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
   <script src="runtime.js"></script>
   <script src="app.js"></script>
+  <script src="enhancements.js"></script>
 </body>
 </html>
