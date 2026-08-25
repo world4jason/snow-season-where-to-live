@@ -18,6 +18,7 @@
 }
 
 .date-picker-row input[type="date"],
+.destination-inline-select,
 .search-inline-select,
 .search-inline-input {
   min-width: 0;
@@ -36,6 +37,7 @@
   width: 138px;
 }
 
+.destination-inline-select,
 .search-inline-select,
 .search-inline-input {
   width: 100%;
@@ -161,6 +163,7 @@
     flex-wrap: wrap;
   }
   .date-picker-row input[type="date"],
+  .destination-inline-select,
   .search-inline-select,
   .search-inline-input {
     font-size: 16px;
