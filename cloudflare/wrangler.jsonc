@@ -2,7 +2,7 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "snow-season-where-to-live-api",
   "main": "worker.js",
-  "compatibility_date": "2026-08-26",
+  "compatibility_date": "2026-08-25",
   "triggers": {
     "crons": ["20 0 * * *"]
   },
