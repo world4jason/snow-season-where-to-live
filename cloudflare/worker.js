@@ -55,10 +55,8 @@ function explicitTags(prop) {
   };
 }
 
-function googleMapsUrl(prop, watch, hasCoords, lat, lon) {
-  const query = hasCoords
-    ? `${lat},${lon}`
-    : `${prop.name || 'Hotel'}, ${watch.name || watch.query}, Japan`;
+function googleMapsUrl(prop, watch) {
+  const query = `${prop.name || 'Hotel'}, ${watch.name || watch.query}, Japan`;
   const params = new URLSearchParams({
     api: '1',
     query,
@@ -69,12 +67,12 @@ function googleMapsUrl(prop, watch, hasCoords, lat, lon) {
 }
 
 function normalizeProperty(prop, watch, center, nights) {
-  let nightly = prop?.rate_per_night?.extracted_lowest ?? null;
+  let nightly = prop?.rate_per_night?.extracted_lowest ?? prop?.extracted_price ?? null;
   const total = prop?.total_rate?.extracted_lowest ?? null;
   if (nightly == null && total != null) nightly = Math.round(Number(total) / nights);
 
   const prices = Array.isArray(prop.prices) ? prop.prices : [];
-  let source = prices[0]?.source ?? null;
+  let source = prop.source || prices[0]?.source || 'Google Hotels';
   let link = prop.link ?? null;
   for (const candidate of prices) {
     if (candidate?.link) {
@@ -83,6 +81,12 @@ function normalizeProperty(prop, watch, center, nights) {
       break;
     }
   }
+
+  const images = Array.isArray(prop.images) ? prop.images : [];
+  const thumbnail = prop.thumbnail
+    || images.find((image) => image?.thumbnail)?.thumbnail
+    || images.find((image) => image?.original_image)?.original_image
+    || null;
 
   const lat = Number(prop?.gps_coordinates?.latitude);
   const lon = Number(prop?.gps_coordinates?.longitude);
@@ -99,8 +103,8 @@ function normalizeProperty(prop, watch, center, nights) {
     reviews: prop.reviews ?? null,
     source,
     link,
-    google_maps_url: googleMapsUrl(prop, watch, hasCoords, lat, lon),
-    thumbnail: prop.thumbnail ?? null,
+    google_maps_url: googleMapsUrl(prop, watch),
+    thumbnail,
     latitude: hasCoords ? lat : null,
     longitude: hasCoords ? lon : null,
     hotel_class: prop.hotel_class ?? null,
@@ -215,15 +219,19 @@ function validDateOnly(value) {
   return /^\d{4}-\d{2}-\d{2}$/.test(String(value || '')) && Number.isFinite(Date.parse(`${value}T00:00:00Z`));
 }
 
-async function consumeManualQuota(env, cost) {
+async function monthlyManualUsage(env) {
   const month = new Date().toISOString().slice(0, 7);
   const key = `manual-serp-usage:${month}`;
-  const used = Number(await env.CACHE.get(key) || 0);
-  if (used + cost > MANUAL_MONTHLY_SERP_CALL_LIMIT) {
-    return { allowed: false, used, limit: MANUAL_MONTHLY_SERP_CALL_LIMIT };
+  return { month, key, used: Number(await env.CACHE.get(key) || 0) };
+}
+
+async function consumeManualQuota(env, cost) {
+  const usage = await monthlyManualUsage(env);
+  if (usage.used + cost > MANUAL_MONTHLY_SERP_CALL_LIMIT) {
+    return { allowed: false, used: usage.used, limit: MANUAL_MONTHLY_SERP_CALL_LIMIT };
   }
-  const next = used + cost;
-  await env.CACHE.put(key, String(next), { expirationTtl: 3456000 });
+  const next = usage.used + cost;
+  await env.CACHE.put(usage.key, String(next), { expirationTtl: 3456000 });
   return { allowed: true, used: next, limit: MANUAL_MONTHLY_SERP_CALL_LIMIT };
 }
 
@@ -239,12 +247,21 @@ async function manualSearch(request, env) {
 
   const checkIn = String(body?.check_in || '');
   const checkOut = String(body?.check_out || '');
+  const adults = Number(body?.adults ?? 2);
+  const maxPrice = Number(body?.max_price_per_night ?? 6000);
+
   if (!validDateOnly(checkIn) || !validDateOnly(checkOut)) {
     return jsonResponse({ error: 'Dates must use YYYY-MM-DD' }, 400);
   }
   const nights = nightsBetween(checkIn, checkOut);
   if (checkOut <= checkIn || nights < 1 || nights > 14) {
     return jsonResponse({ error: 'Stay must be between 1 and 14 nights' }, 400);
+  }
+  if (!Number.isInteger(adults) || adults < 1 || adults > 6) {
+    return jsonResponse({ error: 'Adults must be an integer between 1 and 6' }, 400);
+  }
+  if (!Number.isFinite(maxPrice) || maxPrice < 500 || maxPrice > 30000) {
+    return jsonResponse({ error: 'Nightly budget must be between TWD 500 and 30000' }, 400);
   }
 
   const watches = await loadWatches();
@@ -267,7 +284,7 @@ async function manualSearch(request, env) {
   const cachedResults = [];
   const misses = [];
   for (const baseWatch of selected) {
-    const key = `manual:${baseWatch.id}:${checkIn}:${checkOut}`;
+    const key = `manual:${baseWatch.id}:${checkIn}:${checkOut}:${adults}:${Math.round(maxPrice)}`;
     const cached = await env.CACHE.get(key, 'json');
     if (cached) cachedResults.push(cached);
     else misses.push({ baseWatch, key });
@@ -287,7 +304,13 @@ async function manualSearch(request, env) {
   const freshResults = [];
   let geocodeMisses = 0;
   for (const { baseWatch, key } of misses) {
-    const watch = { ...baseWatch, check_in: checkIn, check_out: checkOut };
+    const watch = {
+      ...baseWatch,
+      check_in: checkIn,
+      check_out: checkOut,
+      adults,
+      max_price_per_night: Math.round(maxPrice),
+    };
     const hasCachedCenter = Boolean(await env.CACHE.get(`geo:${watch.id}`));
     const current = await buildWatchResult(env, watch, !hasCachedCenter && geocodeMisses > 0);
     if (!hasCachedCenter) geocodeMisses += 1;
@@ -306,6 +329,40 @@ async function manualSearch(request, env) {
   });
 }
 
+async function status(env) {
+  const manual = await monthlyManualUsage(env);
+  let serpapi = null;
+  let serpapiError = null;
+  if (env.SERPAPI_KEY) {
+    try {
+      const params = new URLSearchParams({ api_key: env.SERPAPI_KEY });
+      const response = await fetch(`https://serpapi.com/account.json?${params}`);
+      if (!response.ok) throw new Error(`SerpApi Account HTTP ${response.status}`);
+      const account = await response.json();
+      serpapi = {
+        account_status: account.account_status ?? null,
+        plan_name: account.plan_name ?? null,
+        searches_per_month: account.searches_per_month ?? null,
+        this_month_usage: account.this_month_usage ?? null,
+        total_searches_left: account.total_searches_left ?? account.plan_searches_left ?? null,
+        rate_limit_per_hour: account.account_rate_limit_per_hour ?? null,
+      };
+    } catch (err) {
+      serpapiError = err instanceof Error ? err.message : String(err);
+    }
+  }
+
+  return {
+    ok: true,
+    schedule_utc: '20 0 * * *',
+    automatic_searches_per_run: (await loadWatches()).length,
+    manual_searches_used: manual.used,
+    manual_searches_limit: MANUAL_MONTHLY_SERP_CALL_LIMIT,
+    serpapi,
+    serpapi_error: serpapiError,
+  };
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -313,6 +370,14 @@ export default {
 
     if (url.pathname === '/' || url.pathname === '/health') {
       return jsonResponse({ ok: true, service: 'snow-season-where-to-live-api' });
+    }
+
+    if (url.pathname === '/api/status' && request.method === 'GET') {
+      try {
+        return jsonResponse(await status(env));
+      } catch (err) {
+        return jsonResponse({ error: err instanceof Error ? err.message : String(err) }, 500);
+      }
     }
 
     if (url.pathname === '/api/latest' && request.method === 'GET') {
@@ -323,8 +388,7 @@ export default {
 
     if (url.pathname === '/api/search' && request.method === 'POST') {
       if (env.MANUAL_SEARCH_RATE_LIMITER) {
-        const actor = request.headers.get('CF-Connecting-IP') || 'anonymous';
-        const { success } = await env.MANUAL_SEARCH_RATE_LIMITER.limit({ key: `manual-search:${actor}` });
+        const { success } = await env.MANUAL_SEARCH_RATE_LIMITER.limit({ key: 'public-live-search' });
         if (!success) return jsonResponse({ error: '查詢太頻繁，請稍後再試。' }, 429);
       }
       return manualSearch(request, env);
