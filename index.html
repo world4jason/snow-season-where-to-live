@@ -141,7 +141,7 @@
         <div class="hotel-results" id="hotelResults"></div>
         <section class="empty" id="emptyState" hidden>
           <h2>目前沒有符合條件的住宿</h2>
-          <p>如果還沒執行過搜尋，請先加入 <code>SERPAPI_KEY</code>，再從 GitHub Actions 執行 <strong>Check ski stays</strong>。</p>
+          <p>Cloudflare Worker 第一次完成資料更新後，住宿會自動出現在這裡。</p>
         </section>
       </div>
 
@@ -160,6 +160,7 @@
   </main>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <script src="runtime.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
