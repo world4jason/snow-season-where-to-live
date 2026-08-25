@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Snow Season — Where to Live</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="shell">
+    <header class="hero">
+      <div>
+        <div class="eyebrow">SKI STAY WATCHER</div>
+        <h1>Snow Season — Where to Live</h1>
+        <p>監控雪場附近住宿；低於預算、有房或降價時快速看見。</p>
+      </div>
+      <div class="status-card">
+        <span>Last checked</span>
+        <strong id="lastChecked">尚未執行</strong>
+      </div>
+    </header>
+
+    <section class="summary" id="summary"></section>
+    <section class="watch-grid" id="watchGrid"></section>
+
+    <section class="empty" id="emptyState" hidden>
+      <h2>還沒有搜尋結果</h2>
+      <p>加入 <code>SERPAPI_KEY</code> 後，在 GitHub Actions 手動執行一次 <strong>Check ski stays</strong>。</p>
+    </section>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>
