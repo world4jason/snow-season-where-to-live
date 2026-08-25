@@ -2,8 +2,17 @@ const state = {
   data: null,
   selectedResort: 'all',
   sort: 'price',
+  filters: {
+    priceMax: null,
+    minRating: 0,
+    maxDistance: null,
+    freeCancellation: false,
+    breakfastIncluded: false,
+    skiInOut: false,
+  },
   map: null,
   markerLayer: null,
+  centerLayer: null,
   markers: new Map(),
   activeHotelKey: null,
 };
@@ -43,7 +52,7 @@ const money = (value, currency = 'TWD') => {
 const compactMoney = (value, currency = 'TWD') => {
   if (value == null) return '—';
   const symbols = { TWD: 'NT$', JPY: '¥', USD: '$' };
-  return `${symbols[currency] || currency + ' '}${Math.round(Number(value)).toLocaleString('zh-TW')}`;
+  return `${symbols[currency] || `${currency} `}${Math.round(Number(value)).toLocaleString('zh-TW')}`;
 };
 
 const shortDate = (dateString) => {
@@ -52,13 +61,15 @@ const shortDate = (dateString) => {
   return `${year}/${String(month).padStart(2, '0')}/${String(day).padStart(2, '0')}`;
 };
 
+const hasNumber = (value) => Number.isFinite(Number(value));
+
 function selectedWatches() {
   const watches = state.data?.watches || [];
   if (state.selectedResort === 'all') return watches;
   return watches.filter((watch) => watch.id === state.selectedResort);
 }
 
-function hotelRows() {
+function baseHotelRows() {
   const rows = [];
   selectedWatches().forEach((watch) => {
     (watch.properties || []).forEach((hotel, index) => {
@@ -70,8 +81,49 @@ function hotelRows() {
         currency: watch.currency || 'TWD',
         nights: watch.nights || 1,
         budget: watch.max_price_per_night,
+        center: watch.center || null,
       });
     });
+  });
+  return rows;
+}
+
+function maxBudgetForSelection() {
+  const values = selectedWatches()
+    .map((watch) => Number(watch.max_price_per_night))
+    .filter(Number.isFinite);
+  return values.length ? Math.max(...values) : 6000;
+}
+
+function tagAvailable(rows, key) {
+  return rows.some((row) => row.tags?.[key] === true);
+}
+
+function normalizeFilters() {
+  const rows = baseHotelRows();
+  const maxBudget = maxBudgetForSelection();
+
+  if (state.filters.priceMax != null) {
+    state.filters.priceMax = Math.min(Number(state.filters.priceMax), maxBudget);
+  }
+  if (!tagAvailable(rows, 'free_cancellation')) state.filters.freeCancellation = false;
+  if (!tagAvailable(rows, 'breakfast_included')) state.filters.breakfastIncluded = false;
+  if (!tagAvailable(rows, 'ski_in_out')) state.filters.skiInOut = false;
+}
+
+function filteredHotelRows() {
+  const priceCap = state.filters.priceMax ?? Infinity;
+  const rows = baseHotelRows().filter((row) => {
+    if (hasNumber(row.nightly_price) && Number(row.nightly_price) > priceCap) return false;
+    if (state.filters.minRating > 0 && Number(row.rating || 0) < state.filters.minRating) return false;
+    if (state.filters.maxDistance != null) {
+      if (!hasNumber(row.distance_to_center_km)) return false;
+      if (Number(row.distance_to_center_km) > state.filters.maxDistance) return false;
+    }
+    if (state.filters.freeCancellation && row.tags?.free_cancellation !== true) return false;
+    if (state.filters.breakfastIncluded && row.tags?.breakfast_included !== true) return false;
+    if (state.filters.skiInOut && row.tags?.ski_in_out !== true) return false;
+    return true;
   });
 
   rows.sort((a, b) => {
@@ -79,8 +131,15 @@ function hotelRows() {
       const ratingDelta = (Number(b.rating) || 0) - (Number(a.rating) || 0);
       if (ratingDelta !== 0) return ratingDelta;
     }
+    if (state.sort === 'distance') {
+      const aDistance = hasNumber(a.distance_to_center_km) ? Number(a.distance_to_center_km) : Infinity;
+      const bDistance = hasNumber(b.distance_to_center_km) ? Number(b.distance_to_center_km) : Infinity;
+      const distanceDelta = aDistance - bDistance;
+      if (distanceDelta !== 0) return distanceDelta;
+    }
     return (Number(a.nightly_price) || Infinity) - (Number(b.nightly_price) || Infinity);
   });
+
   return rows;
 }
 
@@ -129,20 +188,57 @@ function renderSearchBar() {
       : '依各雪場預算';
 }
 
+function setAmenityControl(inputId, rowId, available, checked) {
+  const input = $(inputId);
+  const row = $(rowId);
+  input.disabled = !available;
+  input.checked = available && checked;
+  row.classList.toggle('unavailable', !available);
+}
+
+function renderFilterControls() {
+  const rows = baseHotelRows();
+  const watches = selectedWatches();
+  const first = watches[0];
+  const currency = first?.currency || 'TWD';
+  const maxBudget = maxBudgetForSelection();
+  const priceValue = state.filters.priceMax ?? maxBudget;
+  const slider = $('#priceFilter');
+
+  slider.max = String(Math.max(250, Math.ceil(maxBudget / 250) * 250));
+  slider.value = String(Math.min(priceValue, Number(slider.max)));
+  slider.disabled = rows.length === 0;
+  $('#priceFilterValue').textContent = `${money(Number(slider.value), currency)} 以下`;
+
+  $('#ratingFilter').value = String(state.filters.minRating);
+  $('#distanceFilter').value = state.filters.maxDistance == null ? '' : String(state.filters.maxDistance);
+
+  setAmenityControl('#freeCancellationFilter', '#freeCancellationRow', tagAvailable(rows, 'free_cancellation'), state.filters.freeCancellation);
+  setAmenityControl('#breakfastFilter', '#breakfastRow', tagAvailable(rows, 'breakfast_included'), state.filters.breakfastIncluded);
+  setAmenityControl('#skiInOutFilter', '#skiInOutRow', tagAvailable(rows, 'ski_in_out'), state.filters.skiInOut);
+}
+
 function renderSummary() {
   const watches = selectedWatches();
-  const rows = hotelRows();
-  const foundResorts = watches.filter((watch) => (watch.match_count || 0) > 0).length;
-  const best = rows.length ? rows.reduce((current, row) => (
-    Number(row.nightly_price) < Number(current.nightly_price) ? row : current
-  ), rows[0]) : null;
+  const rows = filteredHotelRows();
+  const baseRows = baseHotelRows();
+  const foundResorts = new Set(rows.map((row) => row.watchId)).size;
+  const best = rows.length
+    ? rows.reduce((current, row) => (
+      Number(row.nightly_price) < Number(current.nightly_price) ? row : current
+    ), rows[0])
+    : null;
 
   $('#summary').innerHTML = `
     <div><span>比較雪場</span><strong>${watches.length}</strong></div>
-    <div><span>目前有符合住宿</span><strong>${foundResorts} / ${watches.length}</strong></div>
-    <div><span>符合住宿總數</span><strong>${rows.length}</strong></div>
-    <div><span>最低每晚</span><strong>${best ? money(best.nightly_price, best.currency) : '—'}</strong></div>
+    <div><span>篩選後有住宿</span><strong>${foundResorts} / ${watches.length}</strong></div>
+    <div><span>顯示住宿</span><strong>${rows.length} / ${baseRows.length}</strong></div>
+    <div><span>目前最低每晚</span><strong>${best ? money(best.nightly_price, best.currency) : '—'}</strong></div>
   `;
+}
+
+function tagChip(text, className = '') {
+  return `<span class="feature-chip ${className}">${escapeHtml(text)}</span>`;
 }
 
 function hotelCard(row) {
@@ -155,6 +251,17 @@ function hotelCard(row) {
   const reviews = row.reviews != null ? `<span>${Number(row.reviews).toLocaleString('zh-TW')} 則評價</span>` : '';
   const hotelClass = row.hotel_class ? `<span>${escapeHtml(row.hotel_class)}</span>` : '';
   const source = row.source ? `<span class="source-badge">${escapeHtml(row.source)}</span>` : '';
+  const propertyType = row.property_type ? `<span>${escapeHtml(row.property_type)}</span>` : '';
+  const distance = hasNumber(row.distance_to_center_km)
+    ? `<span class="distance-badge">距搜尋中心 ${Number(row.distance_to_center_km).toFixed(1)} km</span>`
+    : '';
+
+  const featureChips = [
+    row.tags?.free_cancellation ? tagChip('免費取消', 'good') : '',
+    row.tags?.breakfast_included ? tagChip('含早餐', 'good') : '',
+    row.tags?.ski_in_out ? tagChip('Ski-in / Ski-out', 'ski') : '',
+  ].filter(Boolean).join('');
+
   const photo = image
     ? `<img src="${escapeHtml(image)}" alt="${escapeHtml(row.name)}" loading="lazy" referrerpolicy="no-referrer" />`
     : '<div class="photo-fallback" aria-label="沒有住宿照片">⌂</div>';
@@ -175,7 +282,10 @@ function hotelCard(row) {
           ${rating}
           ${reviews}
           ${hotelClass}
+          ${propertyType}
         </div>
+        <div class="distance-row">${distance}</div>
+        ${featureChips ? `<div class="feature-chips">${featureChips}</div>` : ''}
         <span class="hotel-note">✓ 在你的每晚預算內</span>
       </div>
       <div class="hotel-price">
@@ -190,14 +300,17 @@ function hotelCard(row) {
 
 function renderResults() {
   const watches = selectedWatches();
-  const rows = hotelRows();
+  const rows = filteredHotelRows();
+  const baseRows = baseHotelRows();
   const isAll = state.selectedResort === 'all';
   const title = isAll ? `${watches.length} 個雪場住宿` : watches[0]?.name || '住宿搜尋結果';
 
   $('#resultTitle').textContent = title;
   $('#resultSubtitle').textContent = rows.length
-    ? `找到 ${rows.length} 間在目前預算內的住宿；點卡片或地圖價格可互相定位。`
-    : '目前沒有符合預算的住宿。';
+    ? `顯示 ${rows.length} / ${baseRows.length} 間住宿；點卡片或地圖價格可互相定位。`
+    : baseRows.length
+      ? `原本有 ${baseRows.length} 間住宿，但沒有符合目前篩選。`
+      : '目前沒有符合預算的住宿。';
 
   $('#hotelResults').innerHTML = rows.map(hotelCard).join('');
   $('#emptyState').hidden = rows.length > 0;
@@ -227,6 +340,7 @@ function createMap() {
     maxZoom: 19,
     attribution: '&copy; OpenStreetMap contributors',
   }).addTo(state.map);
+  state.centerLayer = L.layerGroup().addTo(state.map);
   state.markerLayer = L.layerGroup().addTo(state.map);
 }
 
@@ -234,8 +348,17 @@ function priceIcon(row, active = false) {
   return L.divIcon({
     className: 'price-marker-wrapper',
     html: `<div class="price-marker ${active ? 'is-active' : ''}">${escapeHtml(compactMoney(row.nightly_price, row.currency))}</div>`,
-    iconSize: [76, 34],
-    iconAnchor: [38, 17],
+    iconSize: [78, 34],
+    iconAnchor: [39, 17],
+  });
+}
+
+function resortIcon() {
+  return L.divIcon({
+    className: 'resort-marker-wrapper',
+    html: '<div class="resort-marker">⛷</div>',
+    iconSize: [34, 34],
+    iconAnchor: [17, 17],
   });
 }
 
@@ -244,36 +367,63 @@ function renderMap(rows) {
   state.markers.clear();
   state.activeHotelKey = null;
 
-  if (!state.map || !state.markerLayer) {
+  if (!state.map || !state.markerLayer || !state.centerLayer) {
     $('#mapEmpty').hidden = false;
     return;
   }
 
   state.markerLayer.clearLayers();
-  const located = rows.filter((row) => Number.isFinite(Number(row.latitude)) && Number.isFinite(Number(row.longitude)));
-  $('#mapEmpty').hidden = located.length > 0;
+  state.centerLayer.clearLayers();
 
-  if (!located.length) return;
+  const located = rows.filter((row) => hasNumber(row.latitude) && hasNumber(row.longitude));
+  const centeredWatches = selectedWatches().filter((watch) => (
+    hasNumber(watch.center?.latitude) && hasNumber(watch.center?.longitude)
+  ));
+  $('#mapEmpty').hidden = located.length > 0 || centeredWatches.length > 0;
 
   const bounds = [];
+
+  centeredWatches.forEach((watch) => {
+    const latlng = [Number(watch.center.latitude), Number(watch.center.longitude)];
+    bounds.push(latlng);
+    const marker = L.marker(latlng, { icon: resortIcon(), zIndexOffset: 1000 }).addTo(state.centerLayer);
+    marker.bindTooltip(escapeHtml(watch.name), {
+      permanent: true,
+      direction: 'top',
+      className: 'resort-tooltip',
+      offset: [0, -11],
+    });
+    marker.bindPopup(`
+      <div class="hotel-popup">
+        <strong>${escapeHtml(watch.name)}</strong>
+        <span>搜尋中心 · ${escapeHtml(watch.center.display_name || watch.query || '')}</span>
+        <small>住宿距離為直線距離</small>
+      </div>
+    `);
+  });
+
   located.forEach((row) => {
     const latlng = [Number(row.latitude), Number(row.longitude)];
     bounds.push(latlng);
     const marker = L.marker(latlng, { icon: priceIcon(row) }).addTo(state.markerLayer);
+    const distanceText = hasNumber(row.distance_to_center_km)
+      ? ` · ${Number(row.distance_to_center_km).toFixed(1)} km`
+      : '';
     marker.bindPopup(`
       <div class="hotel-popup">
         <strong>${escapeHtml(row.name)}</strong>
-        <span>${escapeHtml(row.resortName)} · ${escapeHtml(money(row.nightly_price, row.currency))}/晚</span>
+        <span>${escapeHtml(row.resortName)} · ${escapeHtml(money(row.nightly_price, row.currency))}/晚${escapeHtml(distanceText)}</span>
       </div>
     `);
     marker.on('click', () => activateHotel(row.key, true, true));
     state.markers.set(row.key, { marker, row });
   });
 
+  if (!bounds.length) return;
   if (bounds.length === 1) {
     state.map.setView(bounds[0], 13);
   } else {
-    state.map.fitBounds(bounds, { padding: [38, 38], maxZoom: 13 });
+    state.map.fitBounds(bounds, { padding: [44, 44], maxZoom: 13 });
   }
   setTimeout(() => state.map.invalidateSize(), 0);
 }
@@ -305,10 +455,24 @@ function activateHotel(key, shouldCenter = false, fromMarker = false) {
 }
 
 function renderAll() {
+  normalizeFilters();
   renderTabs();
   renderSearchBar();
+  renderFilterControls();
   renderSummary();
   renderResults();
+}
+
+function resetFilters() {
+  state.filters = {
+    priceMax: null,
+    minRating: 0,
+    maxDistance: null,
+    freeCancellation: false,
+    breakfastIncluded: false,
+    skiInOut: false,
+  };
+  renderAll();
 }
 
 function bindControls() {
@@ -316,6 +480,7 @@ function bindControls() {
     const button = event.target.closest('[data-resort]');
     if (!button) return;
     state.selectedResort = button.dataset.resort;
+    state.activeHotelKey = null;
     renderAll();
   });
 
@@ -323,6 +488,38 @@ function bindControls() {
     state.sort = event.target.value;
     renderResults();
   });
+
+  $('#priceFilter').addEventListener('input', (event) => {
+    state.filters.priceMax = Number(event.target.value);
+    renderAll();
+  });
+
+  $('#ratingFilter').addEventListener('change', (event) => {
+    state.filters.minRating = Number(event.target.value) || 0;
+    renderAll();
+  });
+
+  $('#distanceFilter').addEventListener('change', (event) => {
+    state.filters.maxDistance = event.target.value === '' ? null : Number(event.target.value);
+    renderAll();
+  });
+
+  $('#freeCancellationFilter').addEventListener('change', (event) => {
+    state.filters.freeCancellation = event.target.checked;
+    renderAll();
+  });
+
+  $('#breakfastFilter').addEventListener('change', (event) => {
+    state.filters.breakfastIncluded = event.target.checked;
+    renderAll();
+  });
+
+  $('#skiInOutFilter').addEventListener('change', (event) => {
+    state.filters.skiInOut = event.target.checked;
+    renderAll();
+  });
+
+  $('#resetFilters').addEventListener('click', resetFilters);
 
   $('#mapToggle').addEventListener('click', () => {
     const layout = $('#bookingLayout');
@@ -345,7 +542,7 @@ async function init() {
 
   const watches = state.data.watches || [];
   if (!watches.length) {
-    $('#resultSubtitle').textContent = '尚未有搜尋資料。';
+    $('#resultSubtitle').textContent = '尚未有搜尋資料。請先從 GitHub Actions 執行一次 Check ski stays。';
     $('#emptyState').hidden = false;
     $('#mapEmpty').hidden = false;
     return;
