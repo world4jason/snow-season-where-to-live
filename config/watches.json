@@ -1,8 +1,8 @@
 [
   {
-    "id": "nozawa-jan",
-    "name": "野澤溫泉",
-    "query": "Nozawa Onsen, Japan",
+    "id": "appi-jan",
+    "name": "安比高原",
+    "query": "Appi Kogen, Japan",
     "check_in": "2027-01-15",
     "check_out": "2027-01-18",
     "adults": 2,
@@ -10,21 +10,31 @@
     "max_price_per_night": 6000
   },
   {
-    "id": "hakuba-jan",
-    "name": "白馬八方",
-    "query": "Hakuba Happo One, Japan",
-    "check_in": "2027-01-20",
-    "check_out": "2027-01-24",
+    "id": "echigo-yuzawa-jan",
+    "name": "越後湯澤",
+    "query": "Echigo Yuzawa, Niigata, Japan",
+    "check_in": "2027-01-15",
+    "check_out": "2027-01-18",
     "adults": 2,
     "currency": "TWD",
     "max_price_per_night": 6000
   },
   {
-    "id": "zao-feb",
-    "name": "藏王溫泉",
-    "query": "Zao Onsen, Japan",
-    "check_in": "2027-02-01",
-    "check_out": "2027-02-05",
+    "id": "madarao-jan",
+    "name": "斑尾高原",
+    "query": "Madarao Kogen, Japan",
+    "check_in": "2027-01-15",
+    "check_out": "2027-01-18",
+    "adults": 2,
+    "currency": "TWD",
+    "max_price_per_night": 6000
+  },
+  {
+    "id": "teine-jan",
+    "name": "札幌手稻",
+    "query": "Sapporo Teine, Sapporo, Japan",
+    "check_in": "2027-01-15",
+    "check_out": "2027-01-18",
     "adults": 2,
     "currency": "TWD",
     "max_price_per_night": 6000
