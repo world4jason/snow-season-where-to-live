@@ -50,6 +50,31 @@
     return watches.every((watch) => watch[field] === first[field]) ? first[field] : fallback;
   }
 
+  function mountDestinationControl() {
+    const host = document.querySelector('#searchDestination');
+    const allWatches = state.data?.watches || [];
+    if (!host) return;
+
+    const fieldLabel = document.querySelector('.search-destination .field-label');
+    if (fieldLabel) fieldLabel.textContent = '顯示雪場';
+
+    host.innerHTML = `
+      <select id="liveResortView" class="destination-inline-select" aria-label="顯示雪場">
+        <option value="all" ${state.selectedResort === 'all' ? 'selected' : ''}>全部 ${allWatches.length} 個雪場</option>
+        ${allWatches.map((watch) => `<option value="${escapeHtml(watch.id)}" ${state.selectedResort === watch.id ? 'selected' : ''}>${escapeHtml(watch.name)}</option>`).join('')}
+      </select>
+    `;
+
+    const select = document.querySelector('#liveResortView');
+    if (select) {
+      select.addEventListener('change', () => {
+        state.selectedResort = select.value;
+        state.activeHotelKey = null;
+        renderAll();
+      });
+    }
+  }
+
   function mountSearchControls() {
     const allWatches = state.data?.watches || [];
     const first = allWatches[0];
@@ -237,13 +262,7 @@
   }
 
   renderSearchBar = function enhancedRenderSearchBar() {
-    const watches = selectedWatches();
-    const destination = document.querySelector('#searchDestination');
-    if (destination) {
-      destination.textContent = state.selectedResort === 'all'
-        ? `全部 ${watches.length} 個雪場`
-        : watches[0]?.name || '—';
-    }
+    mountDestinationControl();
     mountSearchControls();
   };
 
