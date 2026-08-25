@@ -1,4 +1,6 @@
 const WATCHES_URL = 'https://raw.githubusercontent.com/world4jason/snow-season-where-to-live/main/config/watches.json';
+const MANUAL_CACHE_TTL = 21600;
+const MANUAL_MONTHLY_SERP_CALL_LIMIT = 80;
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
@@ -53,6 +55,19 @@ function explicitTags(prop) {
   };
 }
 
+function googleMapsUrl(prop, watch, hasCoords, lat, lon) {
+  const query = hasCoords
+    ? `${lat},${lon}`
+    : `${prop.name || 'Hotel'}, ${watch.name || watch.query}, Japan`;
+  const params = new URLSearchParams({
+    api: '1',
+    query,
+    utm_source: 'snow-season-where-to-live',
+    utm_campaign: 'place_details_search',
+  });
+  return `https://www.google.com/maps/search/?${params.toString()}`;
+}
+
 function normalizeProperty(prop, watch, center, nights) {
   let nightly = prop?.rate_per_night?.extracted_lowest ?? null;
   const total = prop?.total_rate?.extracted_lowest ?? null;
@@ -84,6 +99,7 @@ function normalizeProperty(prop, watch, center, nights) {
     reviews: prop.reviews ?? null,
     source,
     link,
+    google_maps_url: googleMapsUrl(prop, watch, hasCoords, lat, lon),
     thumbnail: prop.thumbnail ?? null,
     latitude: hasCoords ? lat : null,
     longitude: hasCoords ? lon : null,
@@ -148,6 +164,36 @@ async function searchHotels(env, watch) {
   return payload;
 }
 
+async function buildWatchResult(env, watch, shouldDelayGeocode = false) {
+  const nights = nightsBetween(watch.check_in, watch.check_out);
+  let center = null;
+  let properties = [];
+  let error = null;
+
+  try {
+    const cachedCenter = await env.CACHE.get(`geo:${watch.id}`, 'json');
+    center = cachedCenter || await geocode(env, watch, shouldDelayGeocode);
+    const raw = await searchHotels(env, watch);
+    properties = (raw.properties || [])
+      .map((prop) => normalizeProperty(prop, watch, center, nights))
+      .filter((prop) => prop.nightly_price != null && prop.nightly_price <= Number(watch.max_price_per_night))
+      .sort((a, b) => a.nightly_price - b.nightly_price)
+      .slice(0, 20);
+  } catch (err) {
+    error = err instanceof Error ? err.message : String(err);
+  }
+
+  return {
+    ...watch,
+    nights,
+    center,
+    match_count: properties.length,
+    lowest_price: properties[0]?.nightly_price ?? null,
+    properties,
+    error,
+  };
+}
+
 async function refresh(env) {
   if (!env.SERPAPI_KEY) throw new Error('SERPAPI_KEY is not configured');
   const watches = await loadWatches();
@@ -155,43 +201,109 @@ async function refresh(env) {
 
   let geocodeMisses = 0;
   for (const watch of watches) {
-    const nights = nightsBetween(watch.check_in, watch.check_out);
-    let center = null;
-    let properties = [];
-    let error = null;
-
-    try {
-      const cached = await env.CACHE.get(`geo:${watch.id}`, 'json');
-      if (cached) {
-        center = cached;
-      } else {
-        center = await geocode(env, watch, geocodeMisses > 0);
-        geocodeMisses += 1;
-      }
-
-      const raw = await searchHotels(env, watch);
-      properties = (raw.properties || [])
-        .map((prop) => normalizeProperty(prop, watch, center, nights))
-        .filter((prop) => prop.nightly_price != null && prop.nightly_price <= Number(watch.max_price_per_night))
-        .sort((a, b) => a.nightly_price - b.nightly_price)
-        .slice(0, 20);
-    } catch (err) {
-      error = err instanceof Error ? err.message : String(err);
-    }
-
-    output.watches.push({
-      ...watch,
-      nights,
-      center,
-      match_count: properties.length,
-      lowest_price: properties[0]?.nightly_price ?? null,
-      properties,
-      error,
-    });
+    const hasCachedCenter = Boolean(await env.CACHE.get(`geo:${watch.id}`));
+    const current = await buildWatchResult(env, watch, !hasCachedCenter && geocodeMisses > 0);
+    if (!hasCachedCenter) geocodeMisses += 1;
+    output.watches.push(current);
   }
 
   await env.CACHE.put('latest', JSON.stringify(output));
   return output;
+}
+
+function validDateOnly(value) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(String(value || '')) && Number.isFinite(Date.parse(`${value}T00:00:00Z`));
+}
+
+async function consumeManualQuota(env, cost) {
+  const month = new Date().toISOString().slice(0, 7);
+  const key = `manual-serp-usage:${month}`;
+  const used = Number(await env.CACHE.get(key) || 0);
+  if (used + cost > MANUAL_MONTHLY_SERP_CALL_LIMIT) {
+    return { allowed: false, used, limit: MANUAL_MONTHLY_SERP_CALL_LIMIT };
+  }
+  const next = used + cost;
+  await env.CACHE.put(key, String(next), { expirationTtl: 3456000 });
+  return { allowed: true, used: next, limit: MANUAL_MONTHLY_SERP_CALL_LIMIT };
+}
+
+async function manualSearch(request, env) {
+  if (!env.SERPAPI_KEY) return jsonResponse({ error: 'SERPAPI_KEY is not configured' }, 503);
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return jsonResponse({ error: 'Invalid JSON body' }, 400);
+  }
+
+  const checkIn = String(body?.check_in || '');
+  const checkOut = String(body?.check_out || '');
+  if (!validDateOnly(checkIn) || !validDateOnly(checkOut)) {
+    return jsonResponse({ error: 'Dates must use YYYY-MM-DD' }, 400);
+  }
+  const nights = nightsBetween(checkIn, checkOut);
+  if (checkOut <= checkIn || nights < 1 || nights > 14) {
+    return jsonResponse({ error: 'Stay must be between 1 and 14 nights' }, 400);
+  }
+
+  const watches = await loadWatches();
+  let requestedIds;
+  if (body?.resort_ids === 'all') {
+    requestedIds = watches.map((watch) => watch.id);
+  } else if (Array.isArray(body?.resort_ids)) {
+    requestedIds = [...new Set(body.resort_ids.map(String))];
+  } else {
+    requestedIds = [];
+  }
+  if (!requestedIds.length || requestedIds.length > watches.length) {
+    return jsonResponse({ error: 'Select at least one valid resort' }, 400);
+  }
+
+  const watchById = new Map(watches.map((watch) => [watch.id, watch]));
+  const selected = requestedIds.map((id) => watchById.get(id)).filter(Boolean);
+  if (selected.length !== requestedIds.length) return jsonResponse({ error: 'Unknown resort id' }, 400);
+
+  const cachedResults = [];
+  const misses = [];
+  for (const baseWatch of selected) {
+    const key = `manual:${baseWatch.id}:${checkIn}:${checkOut}`;
+    const cached = await env.CACHE.get(key, 'json');
+    if (cached) cachedResults.push(cached);
+    else misses.push({ baseWatch, key });
+  }
+
+  let usage = null;
+  if (misses.length) {
+    usage = await consumeManualQuota(env, misses.length);
+    if (!usage.allowed) {
+      return jsonResponse({
+        error: '本月手動即時查詢額度已用完，請等每日自動更新或下個月再試。',
+        manual_usage: usage,
+      }, 429);
+    }
+  }
+
+  const freshResults = [];
+  let geocodeMisses = 0;
+  for (const { baseWatch, key } of misses) {
+    const watch = { ...baseWatch, check_in: checkIn, check_out: checkOut };
+    const hasCachedCenter = Boolean(await env.CACHE.get(`geo:${watch.id}`));
+    const current = await buildWatchResult(env, watch, !hasCachedCenter && geocodeMisses > 0);
+    if (!hasCachedCenter) geocodeMisses += 1;
+    freshResults.push(current);
+    await env.CACHE.put(key, JSON.stringify(current), { expirationTtl: MANUAL_CACHE_TTL });
+  }
+
+  const resultById = new Map([...cachedResults, ...freshResults].map((watch) => [watch.id, watch]));
+  const ordered = requestedIds.map((id) => resultById.get(id)).filter(Boolean);
+  return jsonResponse({
+    checked_at: new Date().toISOString(),
+    source: 'manual-search',
+    cached: misses.length === 0,
+    watches: ordered,
+    manual_usage: usage,
+  });
 }
 
 export default {
@@ -207,6 +319,15 @@ export default {
       const latest = await env.CACHE.get('latest', 'json');
       if (!latest) return jsonResponse({ checked_at: null, watches: [], message: 'No refresh has run yet.' }, 200);
       return jsonResponse(latest);
+    }
+
+    if (url.pathname === '/api/search' && request.method === 'POST') {
+      if (env.MANUAL_SEARCH_RATE_LIMITER) {
+        const actor = request.headers.get('CF-Connecting-IP') || 'anonymous';
+        const { success } = await env.MANUAL_SEARCH_RATE_LIMITER.limit({ key: `manual-search:${actor}` });
+        if (!success) return jsonResponse({ error: '查詢太頻繁，請稍後再試。' }, 429);
+      }
+      return manualSearch(request, env);
     }
 
     if (url.pathname === '/api/refresh' && request.method === 'POST') {
