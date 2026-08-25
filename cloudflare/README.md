@@ -1,69 +1,90 @@
 # Cloudflare Worker backend
 
-This replaces the GitHub Actions scheduler. GitHub Pages remains the frontend.
+This is the live backend for the GitHub Pages frontend. GitHub Actions is not used.
 
-## One-time deployment
+## Production Worker
 
-Prerequisites: Node.js 18+ and a Cloudflare account.
+```text
+https://snow-season-where-to-live-api.world4jason.workers.dev
+```
+
+## Deploy / update
+
+From the repository:
 
 ```bash
 cd cloudflare
 npx wrangler login
-npx wrangler kv namespace create CACHE
+npx wrangler deploy
 ```
 
-Copy the returned namespace ID into `wrangler.jsonc` and replace:
-
-```text
-REPLACE_WITH_KV_NAMESPACE_ID
-```
-
-Add secrets (they are not committed to GitHub):
+Secrets are stored in Cloudflare and are not committed:
 
 ```bash
 npx wrangler secret put SERPAPI_KEY
 npx wrangler secret put ADMIN_TOKEN
 ```
 
-Use any long random value for `ADMIN_TOKEN`.
+The KV namespace is already configured in `wrangler.jsonc`.
 
-Deploy:
+## Endpoints
+
+### `GET /health`
+
+Basic Worker health check.
+
+### `GET /api/latest`
+
+Returns the most recent daily cached result from KV.
+
+### `POST /api/search`
+
+Public live search used by the GitHub Pages search bar.
+
+Example:
 
 ```bash
-npx wrangler deploy
+curl -X POST \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "resort_ids": ["nozawa-jan"],
+    "check_in": "2027-01-15",
+    "check_out": "2027-01-18",
+    "adults": 2,
+    "max_price_per_night": 6000
+  }' \
+  https://snow-season-where-to-live-api.world4jason.workers.dev/api/search
 ```
 
-Wrangler will print a URL similar to:
+`resort_ids` can also be the string `"all"`.
 
-```text
-https://snow-season-where-to-live-api.<your-workers-subdomain>.workers.dev
-```
+Validation:
 
-## First refresh
+- stay: 1–14 nights
+- adults: 1–6
+- nightly budget: TWD 500–30,000
 
-Run once after deployment:
+Protection:
+
+- same resort + dates + adults + budget is cached in KV for 6 hours
+- public cache-miss SerpApi calls are capped at 80/month
+- Worker Rate Limiting binding protects rapid repeated calls
+
+### `GET /api/status`
+
+Returns backend/SerpApi quota information without exposing the API key.
+
+### `POST /api/refresh`
+
+Protected full refresh for all configured ski areas:
 
 ```bash
 curl -X POST \
   -H "Authorization: Bearer <ADMIN_TOKEN>" \
-  https://snow-season-where-to-live-api.<your-workers-subdomain>.workers.dev/api/refresh
+  https://snow-season-where-to-live-api.world4jason.workers.dev/api/refresh
 ```
 
-Then verify:
-
-```bash
-curl https://snow-season-where-to-live-api.<your-workers-subdomain>.workers.dev/api/latest
-```
-
-## Connect GitHub Pages
-
-Edit `/runtime.js` and set:
-
-```js
-window.SNOW_API_BASE = 'https://snow-season-where-to-live-api.<your-workers-subdomain>.workers.dev';
-```
-
-The existing frontend will then read `/api/latest` from the Worker instead of `data/latest.json`.
+Use this sparingly because it consumes one SerpApi search per configured resort.
 
 ## Schedule
 
@@ -73,19 +94,15 @@ The existing frontend will then read `/api/latest` from the Worker instead of `d
 20 0 * * *
 ```
 
-That runs once daily at 00:20 UTC (08:20 Taiwan time).
+Cloudflare Cron runs in UTC, so this is **08:20 Taiwan time**.
 
-## Storage
+## KV keys
 
-KV binding `CACHE` stores:
+- `latest` — most recent daily full result.
+- `geo:<watch-id>` — cached resort/search-center geocode.
+- `manual:<watch-id>:<check-in>:<check-out>:<adults>:<budget>` — 6-hour live-search cache.
+- `manual-serp-usage:<YYYY-MM>` — public live-search SerpApi cache-miss counter.
 
-- `latest`: current hotel-search payload used by the website.
-- `geo:<watch-id>`: cached OpenStreetMap/Nominatim geocoding results, so resort centers are not geocoded every day.
+## Frontend connection
 
-## Endpoints
-
-- `GET /health` — health check.
-- `GET /api/latest` — public, read-only latest results.
-- `POST /api/refresh` — protected by `ADMIN_TOKEN`, manually refreshes all watches.
-
-The SerpApi key is available only to the Worker as a Cloudflare secret and is never sent to the browser.
+`/runtime.js` points the GitHub Pages frontend at this Worker. The browser never receives `SERPAPI_KEY` or `ADMIN_TOKEN`.
