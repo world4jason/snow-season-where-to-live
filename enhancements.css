@@ -1,14 +1,13 @@
-.search-bar {
-  grid-template-columns: 1.1fr 1.75fr .72fr .9fr;
+.interactive-search-bar {
+  grid-template-columns: 1.05fr 1.75fr .68fr .82fr .82fr;
 }
 
-.date-search-content {
-  width: 100%;
-  min-width: 0;
-}
-
+.date-search-content,
+.search-control-content,
+.search-control-host,
 .date-picker-host {
   width: 100%;
+  min-width: 0;
 }
 
 .date-picker-row {
@@ -18,9 +17,10 @@
   min-width: 0;
 }
 
-.date-picker-row input[type="date"] {
+.date-picker-row input[type="date"],
+.search-inline-select,
+.search-inline-input {
   min-width: 0;
-  width: 138px;
   height: 38px;
   border: 1px solid #cfd4dc;
   border-radius: 8px;
@@ -32,41 +32,76 @@
   font-weight: 700;
 }
 
+.date-picker-row input[type="date"] {
+  width: 138px;
+}
+
+.search-inline-select,
+.search-inline-input {
+  width: 100%;
+}
+
+.budget-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.budget-prefix {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 750;
+}
+
 .date-arrow {
   flex: 0 0 auto;
   color: var(--muted);
   font-weight: 800;
 }
 
-.date-search-button {
-  flex: 0 0 auto;
-  min-height: 38px;
+.search-action-field {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
+  gap: 3px;
+}
+
+.search-submit-button {
+  width: 100%;
+  min-height: 44px;
   border: 0;
-  border-radius: 8px;
+  border-radius: 9px;
   padding: 0 12px;
   background: var(--brand);
   color: white;
   cursor: pointer;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 850;
 }
 
-.date-search-button:hover {
+.search-submit-button:hover {
   background: var(--brand-dark);
 }
 
-.date-search-button:disabled {
+.search-submit-button:disabled {
   opacity: .55;
   cursor: wait;
 }
 
 .date-search-status {
   display: block;
-  min-height: 15px;
-  margin-top: 4px;
+  min-height: 14px;
   color: var(--muted);
-  font-size: 10px;
-  font-weight: 600;
+  font-size: 9px;
+  line-height: 1.25;
+  font-weight: 650;
+  text-align: center;
+}
+
+.date-search-status.success {
+  color: #067647;
 }
 
 .date-search-status.error {
@@ -91,21 +126,24 @@
   background: #f5f8ff;
 }
 
-@media (max-width: 1050px) {
-  .search-bar {
-    grid-template-columns: 1fr 1.55fr .65fr .8fr;
+@media (max-width: 1180px) {
+  .interactive-search-bar {
+    grid-template-columns: 1fr 1.6fr .65fr .75fr .75fr;
   }
   .date-picker-row {
     flex-wrap: wrap;
   }
   .date-picker-row input[type="date"] {
-    flex: 1 1 120px;
+    flex: 1 1 118px;
   }
 }
 
-@media (max-width: 820px) {
-  .search-bar {
+@media (max-width: 900px) {
+  .interactive-search-bar {
     grid-template-columns: 1fr 1fr;
+  }
+  .search-action-field {
+    grid-column: 1 / -1;
   }
   .date-picker-row {
     flex-wrap: nowrap;
@@ -113,20 +151,26 @@
 }
 
 @media (max-width: 620px) {
-  .search-bar {
+  .interactive-search-bar {
     grid-template-columns: 1fr;
+  }
+  .search-action-field {
+    grid-column: auto;
   }
   .date-picker-row {
     flex-wrap: wrap;
+  }
+  .date-picker-row input[type="date"],
+  .search-inline-select,
+  .search-inline-input {
+    font-size: 16px;
   }
   .date-picker-row input[type="date"] {
     flex: 1 1 calc(50% - 16px);
     width: auto;
     min-width: 128px;
-    font-size: 16px;
   }
-  .date-search-button {
-    flex: 1 0 100%;
-    min-height: 44px;
+  .search-submit-button {
+    min-height: 48px;
   }
 }
