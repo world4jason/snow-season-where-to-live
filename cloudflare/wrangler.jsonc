@@ -3,6 +3,9 @@
   "name": "snow-season-where-to-live-api",
   "main": "worker.js",
   "compatibility_date": "2026-08-25",
+  "secrets": {
+    "required": ["SERPAPI_KEY", "ADMIN_TOKEN"]
+  },
   "triggers": {
     "crons": ["20 0 * * *"]
   },
