@@ -33,15 +33,10 @@
   font-weight: 700;
 }
 
-.date-picker-row input[type="date"] {
-  width: 138px;
-}
-
+.date-picker-row input[type="date"] { width: 138px; }
 .destination-inline-select,
 .search-inline-select,
-.search-inline-input {
-  width: 100%;
-}
+.search-inline-input { width: 100%; }
 
 .budget-input-wrap {
   display: flex;
@@ -82,15 +77,8 @@
   font-size: 13px;
   font-weight: 850;
 }
-
-.search-submit-button:hover {
-  background: var(--brand-dark);
-}
-
-.search-submit-button:disabled {
-  opacity: .55;
-  cursor: wait;
-}
+.search-submit-button:hover { background: var(--brand-dark); }
+.search-submit-button:disabled { opacity: .55; cursor: wait; }
 
 .date-search-status {
   display: block;
@@ -101,14 +89,25 @@
   font-weight: 650;
   text-align: center;
 }
+.date-search-status.success { color: #067647; }
+.date-search-status.error { color: #b42318; }
 
-.date-search-status.success {
-  color: #067647;
+.query-warning {
+  display: grid;
+  gap: 7px;
+  margin-bottom: 12px;
+  padding: 11px 13px;
+  border: 1px solid #f7b5ae;
+  border-radius: 12px;
+  background: #fff4f2;
+  color: #912018;
+  font-size: 11px;
+  line-height: 1.45;
 }
-
-.date-search-status.error {
-  color: #b42318;
-}
+.query-warning[hidden] { display: none; }
+.query-warning > div { display: grid; gap: 2px; }
+.query-warning strong { font-size: 12px; }
+.query-warning span { overflow-wrap: anywhere; }
 
 .google-maps-link {
   width: 100%;
@@ -122,58 +121,32 @@
   font-size: 12px;
   font-weight: 850;
 }
-
-.google-maps-link:hover {
-  border-color: #174ea6;
-  background: #f5f8ff;
-}
+.google-maps-link:hover { border-color: #174ea6; background: #f5f8ff; }
 
 @media (max-width: 1180px) {
-  .interactive-search-bar {
-    grid-template-columns: 1fr 1.6fr .65fr .75fr .75fr;
-  }
-  .date-picker-row {
-    flex-wrap: wrap;
-  }
-  .date-picker-row input[type="date"] {
-    flex: 1 1 118px;
-  }
+  .interactive-search-bar { grid-template-columns: 1fr 1.6fr .65fr .75fr .75fr; }
+  .date-picker-row { flex-wrap: wrap; }
+  .date-picker-row input[type="date"] { flex: 1 1 118px; }
 }
 
 @media (max-width: 900px) {
-  .interactive-search-bar {
-    grid-template-columns: 1fr 1fr;
-  }
-  .search-action-field {
-    grid-column: 1 / -1;
-  }
-  .date-picker-row {
-    flex-wrap: nowrap;
-  }
+  .interactive-search-bar { grid-template-columns: 1fr 1fr; }
+  .search-action-field { grid-column: 1 / -1; }
+  .date-picker-row { flex-wrap: nowrap; }
 }
 
 @media (max-width: 620px) {
-  .interactive-search-bar {
-    grid-template-columns: 1fr;
-  }
-  .search-action-field {
-    grid-column: auto;
-  }
-  .date-picker-row {
-    flex-wrap: wrap;
-  }
+  .interactive-search-bar { grid-template-columns: 1fr; }
+  .search-action-field { grid-column: auto; }
+  .date-picker-row { flex-wrap: wrap; }
   .date-picker-row input[type="date"],
   .destination-inline-select,
   .search-inline-select,
-  .search-inline-input {
-    font-size: 16px;
-  }
+  .search-inline-input { font-size: 16px; }
   .date-picker-row input[type="date"] {
     flex: 1 1 calc(50% - 16px);
     width: auto;
     min-width: 128px;
   }
-  .search-submit-button {
-    min-height: 48px;
-  }
+  .search-submit-button { min-height: 48px; }
 }
