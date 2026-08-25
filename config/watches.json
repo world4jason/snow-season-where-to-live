@@ -1,0 +1,32 @@
+[
+  {
+    "id": "nozawa-jan",
+    "name": "野澤溫泉",
+    "query": "Nozawa Onsen, Japan",
+    "check_in": "2027-01-15",
+    "check_out": "2027-01-18",
+    "adults": 2,
+    "currency": "TWD",
+    "max_price_per_night": 6000
+  },
+  {
+    "id": "hakuba-jan",
+    "name": "白馬八方",
+    "query": "Hakuba Happo One, Japan",
+    "check_in": "2027-01-20",
+    "check_out": "2027-01-24",
+    "adults": 2,
+    "currency": "TWD",
+    "max_price_per_night": 6000
+  },
+  {
+    "id": "zao-feb",
+    "name": "藏王溫泉",
+    "query": "Zao Onsen, Japan",
+    "check_in": "2027-02-01",
+    "check_out": "2027-02-05",
+    "adults": 2,
+    "currency": "TWD",
+    "max_price_per_night": 6000
+  }
+]
