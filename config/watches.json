@@ -38,5 +38,15 @@
     "adults": 2,
     "currency": "TWD",
     "max_price_per_night": 6000
+  },
+  {
+    "id": "nozawa-jan",
+    "name": "野澤溫泉",
+    "query": "Nozawa Onsen, Nagano, Japan",
+    "check_in": "2027-01-15",
+    "check_out": "2027-01-18",
+    "adults": 2,
+    "currency": "TWD",
+    "max_price_per_night": 6000
   }
 ]
