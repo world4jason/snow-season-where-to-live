@@ -4,30 +4,103 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Snow Season — Where to Live</title>
+  <link rel="preconnect" href="https://unpkg.com" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <main class="shell">
-    <header class="hero">
+  <header class="topbar">
+    <a class="brand" href="#" aria-label="Snow Season 首頁">
+      <span class="brand-mark">❄</span>
+      <span>Snow Season</span>
+    </a>
+    <div class="top-actions">
+      <span class="checked-label">最近更新 <strong id="lastChecked">尚未執行</strong></span>
+      <a class="ghost-link" href="https://github.com/world4jason/snow-season-where-to-live" target="_blank" rel="noopener">GitHub</a>
+    </div>
+  </header>
+
+  <main>
+    <section class="search-wrap">
+      <div class="search-copy">
+        <p class="eyebrow">SKI STAY WATCHER</p>
+        <h1>雪季住哪裡？</h1>
+        <p>用同一組日期與預算，比較不同雪場目前還找得到哪些住宿。</p>
+      </div>
+
+      <div class="search-bar" aria-label="目前搜尋條件">
+        <div class="search-field search-destination">
+          <span class="field-icon">⌖</span>
+          <div>
+            <span class="field-label">雪場</span>
+            <strong id="searchDestination">全部雪場</strong>
+          </div>
+        </div>
+        <div class="search-field">
+          <span class="field-icon">◫</span>
+          <div>
+            <span class="field-label">入住日期</span>
+            <strong id="searchDates">—</strong>
+          </div>
+        </div>
+        <div class="search-field">
+          <span class="field-icon">♙</span>
+          <div>
+            <span class="field-label">旅客</span>
+            <strong id="searchGuests">2 人</strong>
+          </div>
+        </div>
+        <div class="search-field">
+          <span class="field-icon">¥</span>
+          <div>
+            <span class="field-label">每晚預算</span>
+            <strong id="searchBudget">—</strong>
+          </div>
+        </div>
+      </div>
+
+      <div class="resort-tabs" id="resortTabs" aria-label="選擇雪場"></div>
+    </section>
+
+    <section class="overview" id="summary"></section>
+
+    <section class="results-toolbar">
       <div>
-        <div class="eyebrow">SKI STAY WATCHER</div>
-        <h1>Snow Season — Where to Live</h1>
-        <p>監控雪場附近住宿；低於預算、有房或降價時快速看見。</p>
+        <h2 id="resultTitle">住宿搜尋結果</h2>
+        <p id="resultSubtitle">正在載入最新資料…</p>
       </div>
-      <div class="status-card">
-        <span>Last checked</span>
-        <strong id="lastChecked">尚未執行</strong>
+      <div class="toolbar-actions">
+        <label class="sort-control">
+          <span>排序</span>
+          <select id="sortSelect">
+            <option value="price">價格最低</option>
+            <option value="rating">評分最高</option>
+          </select>
+        </label>
+        <button class="map-toggle" id="mapToggle" type="button" aria-pressed="false">地圖</button>
       </div>
-    </header>
+    </section>
 
-    <section class="summary" id="summary"></section>
-    <section class="watch-grid" id="watchGrid"></section>
+    <section class="booking-layout" id="bookingLayout">
+      <div class="results-column">
+        <div class="hotel-results" id="hotelResults"></div>
+        <section class="empty" id="emptyState" hidden>
+          <h2>目前沒有符合條件的住宿</h2>
+          <p>如果還沒執行過搜尋，請先加入 <code>SERPAPI_KEY</code>，再從 GitHub Actions 執行 <strong>Check ski stays</strong>。</p>
+        </section>
+      </div>
 
-    <section class="empty" id="emptyState" hidden>
-      <h2>還沒有搜尋結果</h2>
-      <p>加入 <code>SERPAPI_KEY</code> 後，在 GitHub Actions 手動執行一次 <strong>Check ski stays</strong>。</p>
+      <aside class="map-panel" id="mapPanel" aria-label="住宿地圖">
+        <div id="map"></div>
+        <div class="map-empty" id="mapEmpty" hidden>
+          <strong>這批結果沒有座標資料</strong>
+          <span>住宿清單仍可正常使用。</span>
+        </div>
+      </aside>
     </section>
   </main>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
   <script src="app.js"></script>
 </body>
 </html>
