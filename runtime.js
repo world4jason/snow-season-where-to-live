@@ -1,6 +1,5 @@
-// Set this after the Cloudflare Worker is deployed, e.g.
-// window.SNOW_API_BASE = 'https://snow-season-where-to-live-api.<your-subdomain>.workers.dev';
-window.SNOW_API_BASE = '';
+// Cloudflare Worker backend for live ski accommodation data.
+window.SNOW_API_BASE = 'https://snow-season-where-to-live-api.world4jason.workers.dev';
 
 (() => {
   const originalFetch = window.fetch.bind(window);
