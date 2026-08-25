@@ -1,0 +1,15 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "snow-season-where-to-live-api",
+  "main": "worker.js",
+  "compatibility_date": "2026-08-26",
+  "triggers": {
+    "crons": ["20 0 * * *"]
+  },
+  "kv_namespaces": [
+    {
+      "binding": "CACHE",
+      "id": "REPLACE_WITH_KV_NAMESPACE_ID"
+    }
+  ]
+}
