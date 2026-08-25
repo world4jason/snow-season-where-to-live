@@ -1,93 +1,362 @@
-const money = (value, currency = 'TWD') => {
-  if (value == null) return '—';
+const state = {
+  data: null,
+  selectedResort: 'all',
+  sort: 'price',
+  map: null,
+  markerLayer: null,
+  markers: new Map(),
+  activeHotelKey: null,
+};
+
+const $ = (selector) => document.querySelector(selector);
+
+const escapeHtml = (value) => String(value ?? '')
+  .replaceAll('&', '&amp;')
+  .replaceAll('<', '&lt;')
+  .replaceAll('>', '&gt;')
+  .replaceAll('"', '&quot;')
+  .replaceAll("'", '&#039;');
+
+const safeUrl = (value) => {
+  if (!value) return null;
   try {
-    return new Intl.NumberFormat('zh-TW', { style: 'currency', currency, maximumFractionDigits: 0 }).format(value);
+    const url = new URL(value, window.location.href);
+    return ['http:', 'https:'].includes(url.protocol) ? url.href : null;
   } catch {
-    return `${currency} ${Number(value).toLocaleString()}`;
+    return null;
   }
 };
 
-const dateRange = (start, end) => `${start} → ${end}`;
+const money = (value, currency = 'TWD') => {
+  if (value == null || Number.isNaN(Number(value))) return '—';
+  try {
+    return new Intl.NumberFormat('zh-TW', {
+      style: 'currency',
+      currency,
+      maximumFractionDigits: 0,
+    }).format(Number(value));
+  } catch {
+    return `${currency} ${Number(value).toLocaleString('zh-TW')}`;
+  }
+};
 
-function hotelCard(hotel, currency) {
-  const link = hotel.link ? `<a class="btn" href="${hotel.link}" target="_blank" rel="noopener">查看住宿</a>` : '';
-  const rating = hotel.rating ? `<span>★ ${hotel.rating}</span>` : '';
-  const source = hotel.source ? `<span>${hotel.source}</span>` : '';
-  return `
-    <article class="hotel-card">
-      <div class="hotel-main">
-        <h4>${hotel.name}</h4>
-        <div class="meta">${rating}${source}</div>
-      </div>
-      <div class="price-block">
-        <strong>${money(hotel.nightly_price, currency)}</strong>
-        <span>/ 晚</span>
-      </div>
-      ${link}
-    </article>`;
+const compactMoney = (value, currency = 'TWD') => {
+  if (value == null) return '—';
+  const symbols = { TWD: 'NT$', JPY: '¥', USD: '$' };
+  return `${symbols[currency] || currency + ' '}${Math.round(Number(value)).toLocaleString('zh-TW')}`;
+};
+
+const shortDate = (dateString) => {
+  if (!dateString) return '—';
+  const [year, month, day] = dateString.split('-').map(Number);
+  return `${year}/${String(month).padStart(2, '0')}/${String(day).padStart(2, '0')}`;
+};
+
+function selectedWatches() {
+  const watches = state.data?.watches || [];
+  if (state.selectedResort === 'all') return watches;
+  return watches.filter((watch) => watch.id === state.selectedResort);
 }
 
-function watchCard(watch) {
-  const currency = watch.currency || 'TWD';
-  const hasMatches = watch.match_count > 0;
-  const stateClass = watch.error ? 'error' : hasMatches ? 'found' : 'none';
-  const stateText = watch.error ? '查詢失敗' : hasMatches ? `找到 ${watch.match_count} 間` : '目前無符合住宿';
-  const hotels = (watch.properties || []).slice(0, 5).map(h => hotelCard(h, currency)).join('');
+function hotelRows() {
+  const rows = [];
+  selectedWatches().forEach((watch) => {
+    (watch.properties || []).forEach((hotel, index) => {
+      rows.push({
+        ...hotel,
+        key: `${watch.id}:${index}`,
+        watchId: watch.id,
+        resortName: watch.name,
+        currency: watch.currency || 'TWD',
+        nights: watch.nights || 1,
+        budget: watch.max_price_per_night,
+      });
+    });
+  });
 
-  return `
-    <article class="watch-card ${stateClass}">
-      <div class="watch-head">
-        <div>
-          <div class="pill">${stateText}</div>
-          <h2>${watch.name}</h2>
-          <p>${dateRange(watch.check_in, watch.check_out)} · ${watch.adults || 2} 人 · ${watch.nights || ''} 晚</p>
-        </div>
-        <div class="budget">
-          <span>預算 / 晚</span>
-          <strong>${money(watch.max_price_per_night, currency)}</strong>
-        </div>
-      </div>
-
-      <div class="watch-stats">
-        <div><span>最低價</span><strong>${money(watch.lowest_price, currency)}</strong></div>
-        <div><span>符合住宿</span><strong>${watch.match_count ?? 0}</strong></div>
-        <div><span>搜尋地點</span><strong>${watch.query}</strong></div>
-      </div>
-
-      ${watch.error ? `<div class="error-box">${watch.error}</div>` : ''}
-      ${hotels ? `<div class="hotel-list">${hotels}</div>` : ''}
-    </article>`;
+  rows.sort((a, b) => {
+    if (state.sort === 'rating') {
+      const ratingDelta = (Number(b.rating) || 0) - (Number(a.rating) || 0);
+      if (ratingDelta !== 0) return ratingDelta;
+    }
+    return (Number(a.nightly_price) || Infinity) - (Number(b.nightly_price) || Infinity);
+  });
+  return rows;
 }
 
-async function init() {
-  const response = await fetch(`data/latest.json?v=${Date.now()}`);
-  const data = await response.json();
-  const watches = data.watches || [];
+function renderTabs() {
+  const watches = state.data?.watches || [];
+  const tabs = [
+    { id: 'all', name: '全部雪場' },
+    ...watches.map((watch) => ({ id: watch.id, name: watch.name })),
+  ];
 
-  document.querySelector('#lastChecked').textContent = data.checked_at
-    ? new Date(data.checked_at).toLocaleString('zh-TW')
-    : '尚未執行';
+  $('#resortTabs').innerHTML = tabs.map((tab) => `
+    <button
+      class="resort-tab ${state.selectedResort === tab.id ? 'active' : ''}"
+      type="button"
+      data-resort="${escapeHtml(tab.id)}"
+      aria-pressed="${state.selectedResort === tab.id ? 'true' : 'false'}"
+    >${escapeHtml(tab.name)}</button>
+  `).join('');
+}
 
-  if (!watches.length) {
-    document.querySelector('#emptyState').hidden = false;
+function renderSearchBar() {
+  const watches = selectedWatches();
+  const first = watches[0];
+  const allSame = (field) => watches.length && watches.every((watch) => watch[field] === first[field]);
+
+  $('#searchDestination').textContent = state.selectedResort === 'all'
+    ? `全部 ${watches.length} 個雪場`
+    : first?.name || '—';
+
+  $('#searchDates').textContent = !first
+    ? '—'
+    : allSame('check_in') && allSame('check_out')
+      ? `${shortDate(first.check_in)} → ${shortDate(first.check_out)}`
+      : '依各雪場條件';
+
+  $('#searchGuests').textContent = !first
+    ? '—'
+    : allSame('adults')
+      ? `${first.adults || 2} 人`
+      : '依各雪場條件';
+
+  $('#searchBudget').textContent = !first
+    ? '—'
+    : allSame('max_price_per_night') && allSame('currency')
+      ? `${money(first.max_price_per_night, first.currency || 'TWD')} 以下`
+      : '依各雪場預算';
+}
+
+function renderSummary() {
+  const watches = selectedWatches();
+  const rows = hotelRows();
+  const foundResorts = watches.filter((watch) => (watch.match_count || 0) > 0).length;
+  const best = rows.length ? rows.reduce((current, row) => (
+    Number(row.nightly_price) < Number(current.nightly_price) ? row : current
+  ), rows[0]) : null;
+
+  $('#summary').innerHTML = `
+    <div><span>比較雪場</span><strong>${watches.length}</strong></div>
+    <div><span>目前有符合住宿</span><strong>${foundResorts} / ${watches.length}</strong></div>
+    <div><span>符合住宿總數</span><strong>${rows.length}</strong></div>
+    <div><span>最低每晚</span><strong>${best ? money(best.nightly_price, best.currency) : '—'}</strong></div>
+  `;
+}
+
+function hotelCard(row) {
+  const image = safeUrl(row.thumbnail);
+  const link = safeUrl(row.link);
+  const total = row.total_price ?? (row.nightly_price != null ? Number(row.nightly_price) * Number(row.nights || 1) : null);
+  const rating = row.rating != null
+    ? `<span class="rating-good">★ ${escapeHtml(row.rating)}</span>`
+    : '<span>尚無評分</span>';
+  const reviews = row.reviews != null ? `<span>${Number(row.reviews).toLocaleString('zh-TW')} 則評價</span>` : '';
+  const hotelClass = row.hotel_class ? `<span>${escapeHtml(row.hotel_class)}</span>` : '';
+  const source = row.source ? `<span class="source-badge">${escapeHtml(row.source)}</span>` : '';
+  const photo = image
+    ? `<img src="${escapeHtml(image)}" alt="${escapeHtml(row.name)}" loading="lazy" referrerpolicy="no-referrer" />`
+    : '<div class="photo-fallback" aria-label="沒有住宿照片">⌂</div>';
+  const action = link
+    ? `<a class="hotel-link" href="${escapeHtml(link)}" target="_blank" rel="noopener">查看住宿</a>`
+    : '';
+
+  return `
+    <article class="hotel-card" tabindex="0" data-hotel-key="${escapeHtml(row.key)}">
+      <div class="hotel-photo">${photo}</div>
+      <div class="hotel-info">
+        <div class="hotel-kicker">
+          <span class="resort-badge">${escapeHtml(row.resortName)}</span>
+          ${source}
+        </div>
+        <h3>${escapeHtml(row.name || '未命名住宿')}</h3>
+        <div class="hotel-meta">
+          ${rating}
+          ${reviews}
+          ${hotelClass}
+        </div>
+        <span class="hotel-note">✓ 在你的每晚預算內</span>
+      </div>
+      <div class="hotel-price">
+        <span class="price-label">每晚最低</span>
+        <strong class="nightly-price">${money(row.nightly_price, row.currency)}</strong>
+        <span class="total-price">${row.nights || 1} 晚約 ${money(total, row.currency)}</span>
+        ${action}
+      </div>
+    </article>
+  `;
+}
+
+function renderResults() {
+  const watches = selectedWatches();
+  const rows = hotelRows();
+  const isAll = state.selectedResort === 'all';
+  const title = isAll ? `${watches.length} 個雪場住宿` : watches[0]?.name || '住宿搜尋結果';
+
+  $('#resultTitle').textContent = title;
+  $('#resultSubtitle').textContent = rows.length
+    ? `找到 ${rows.length} 間在目前預算內的住宿；點卡片或地圖價格可互相定位。`
+    : '目前沒有符合預算的住宿。';
+
+  $('#hotelResults').innerHTML = rows.map(hotelCard).join('');
+  $('#emptyState').hidden = rows.length > 0;
+
+  document.querySelectorAll('.hotel-card').forEach((card) => {
+    const activate = () => activateHotel(card.dataset.hotelKey, true);
+    card.addEventListener('click', (event) => {
+      if (event.target.closest('a')) return;
+      activate();
+    });
+    card.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        activate();
+      }
+    });
+    card.addEventListener('mouseenter', () => activateHotel(card.dataset.hotelKey, false));
+  });
+
+  renderMap(rows);
+}
+
+function createMap() {
+  if (state.map || typeof L === 'undefined') return;
+  state.map = L.map('map', { zoomControl: true, scrollWheelZoom: true }).setView([37.4, 138.6], 5);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; OpenStreetMap contributors',
+  }).addTo(state.map);
+  state.markerLayer = L.layerGroup().addTo(state.map);
+}
+
+function priceIcon(row, active = false) {
+  return L.divIcon({
+    className: 'price-marker-wrapper',
+    html: `<div class="price-marker ${active ? 'is-active' : ''}">${escapeHtml(compactMoney(row.nightly_price, row.currency))}</div>`,
+    iconSize: [76, 34],
+    iconAnchor: [38, 17],
+  });
+}
+
+function renderMap(rows) {
+  createMap();
+  state.markers.clear();
+  state.activeHotelKey = null;
+
+  if (!state.map || !state.markerLayer) {
+    $('#mapEmpty').hidden = false;
     return;
   }
 
-  const totalMatches = watches.reduce((sum, w) => sum + (w.match_count || 0), 0);
-  const foundCount = watches.filter(w => (w.match_count || 0) > 0).length;
-  const best = watches.map(w => w.lowest_price).filter(v => v != null).sort((a,b) => a-b)[0];
+  state.markerLayer.clearLayers();
+  const located = rows.filter((row) => Number.isFinite(Number(row.latitude)) && Number.isFinite(Number(row.longitude)));
+  $('#mapEmpty').hidden = located.length > 0;
 
-  document.querySelector('#summary').innerHTML = `
-    <div><span>監控條件</span><strong>${watches.length}</strong></div>
-    <div><span>目前有房</span><strong>${foundCount}</strong></div>
-    <div><span>符合住宿總數</span><strong>${totalMatches}</strong></div>
-    <div><span>全站最低價</span><strong>${best ? money(best, watches[0].currency || 'TWD') : '—'}</strong></div>
-  `;
+  if (!located.length) return;
 
-  document.querySelector('#watchGrid').innerHTML = watches.map(watchCard).join('');
+  const bounds = [];
+  located.forEach((row) => {
+    const latlng = [Number(row.latitude), Number(row.longitude)];
+    bounds.push(latlng);
+    const marker = L.marker(latlng, { icon: priceIcon(row) }).addTo(state.markerLayer);
+    marker.bindPopup(`
+      <div class="hotel-popup">
+        <strong>${escapeHtml(row.name)}</strong>
+        <span>${escapeHtml(row.resortName)} · ${escapeHtml(money(row.nightly_price, row.currency))}/晚</span>
+      </div>
+    `);
+    marker.on('click', () => activateHotel(row.key, true, true));
+    state.markers.set(row.key, { marker, row });
+  });
+
+  if (bounds.length === 1) {
+    state.map.setView(bounds[0], 13);
+  } else {
+    state.map.fitBounds(bounds, { padding: [38, 38], maxZoom: 13 });
+  }
+  setTimeout(() => state.map.invalidateSize(), 0);
 }
 
-init().catch(err => {
-  document.querySelector('#emptyState').hidden = false;
-  document.querySelector('#emptyState').innerHTML = `<h2>資料載入失敗</h2><p>${err.message}</p>`;
+function activateHotel(key, shouldCenter = false, fromMarker = false) {
+  if (!key) return;
+  state.activeHotelKey = key;
+
+  document.querySelectorAll('.hotel-card').forEach((card) => {
+    card.classList.toggle('selected', card.dataset.hotelKey === key);
+  });
+
+  state.markers.forEach(({ marker, row }, markerKey) => {
+    marker.setIcon(priceIcon(row, markerKey === key));
+  });
+
+  const markerInfo = state.markers.get(key);
+  if (markerInfo && shouldCenter && state.map) {
+    state.map.panTo(markerInfo.marker.getLatLng(), { animate: true });
+    if (!fromMarker) markerInfo.marker.openPopup();
+  }
+
+  if (fromMarker) {
+    const card = document.querySelector(`[data-hotel-key="${CSS.escape(key)}"]`);
+    if (card && window.innerWidth > 820) {
+      card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }
+}
+
+function renderAll() {
+  renderTabs();
+  renderSearchBar();
+  renderSummary();
+  renderResults();
+}
+
+function bindControls() {
+  $('#resortTabs').addEventListener('click', (event) => {
+    const button = event.target.closest('[data-resort]');
+    if (!button) return;
+    state.selectedResort = button.dataset.resort;
+    renderAll();
+  });
+
+  $('#sortSelect').addEventListener('change', (event) => {
+    state.sort = event.target.value;
+    renderResults();
+  });
+
+  $('#mapToggle').addEventListener('click', () => {
+    const layout = $('#bookingLayout');
+    const showingMap = layout.classList.toggle('show-map');
+    $('#mapToggle').textContent = showingMap ? '住宿清單' : '地圖';
+    $('#mapToggle').setAttribute('aria-pressed', showingMap ? 'true' : 'false');
+    if (showingMap && state.map) setTimeout(() => state.map.invalidateSize(), 20);
+  });
+}
+
+async function init() {
+  bindControls();
+  const response = await fetch(`data/latest.json?v=${Date.now()}`);
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  state.data = await response.json();
+
+  $('#lastChecked').textContent = state.data.checked_at
+    ? new Date(state.data.checked_at).toLocaleString('zh-TW', { dateStyle: 'short', timeStyle: 'short' })
+    : '尚未執行';
+
+  const watches = state.data.watches || [];
+  if (!watches.length) {
+    $('#resultSubtitle').textContent = '尚未有搜尋資料。';
+    $('#emptyState').hidden = false;
+    $('#mapEmpty').hidden = false;
+    return;
+  }
+
+  renderAll();
+}
+
+init().catch((error) => {
+  $('#resultSubtitle').textContent = '資料載入失敗。';
+  $('#emptyState').hidden = false;
+  $('#emptyState').innerHTML = `<h2>資料載入失敗</h2><p>${escapeHtml(error.message)}</p>`;
+  $('#mapEmpty').hidden = false;
 });
