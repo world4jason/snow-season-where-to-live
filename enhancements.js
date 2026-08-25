@@ -51,11 +51,12 @@
   }
 
   function mountSearchControls() {
-    const watches = selectedWatches();
-    const checkIn = commonValue(watches, 'check_in', watches[0]?.check_in || '');
-    const checkOut = commonValue(watches, 'check_out', watches[0]?.check_out || '');
-    const adults = Number(commonValue(watches, 'adults', watches[0]?.adults || 2)) || 2;
-    const budget = Number(commonValue(watches, 'max_price_per_night', watches[0]?.max_price_per_night || 6000)) || 6000;
+    const allWatches = state.data?.watches || [];
+    const first = allWatches[0];
+    const checkIn = commonValue(allWatches, 'check_in', first?.check_in || '');
+    const checkOut = commonValue(allWatches, 'check_out', first?.check_out || '');
+    const adults = Number(commonValue(allWatches, 'adults', first?.adults || 2)) || 2;
+    const budget = Number(commonValue(allWatches, 'max_price_per_night', first?.max_price_per_night || 6000)) || 6000;
 
     const dateHost = document.querySelector('#searchDates');
     const guestHost = document.querySelector('#searchGuests');
@@ -106,9 +107,10 @@
       button.addEventListener('click', runLiveSearch);
     }
 
+    const selected = selectedWatches()[0]?.name;
     setSearchStatus(state.selectedResort === 'all'
-      ? `搜尋目前全部 ${watches.length} 個雪場`
-      : `搜尋 ${watches[0]?.name || '目前雪場'}`);
+      ? `搜尋全部 ${allWatches.length} 個雪場`
+      : `搜尋會更新全部 ${allWatches.length} 個雪場；目前顯示 ${selected || '所選雪場'}`);
   }
 
   function setSearchStatus(message, type = '') {
@@ -153,14 +155,14 @@
       button.disabled = true;
       button.textContent = '搜尋中…';
     }
-    setSearchStatus(state.selectedResort === 'all' ? '正在查全部雪場…' : '正在查目前雪場…');
+    setSearchStatus(`正在更新全部 ${state.data?.watches?.length || 5} 個雪場…`);
 
     try {
       const response = await fetch(`${apiBase}/api/search`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          resort_ids: state.selectedResort === 'all' ? 'all' : [state.selectedResort],
+          resort_ids: 'all',
           check_in: checkIn,
           check_out: checkOut,
           adults,
@@ -173,10 +175,9 @@
       const incoming = payload.watches || [];
       if (!incoming.length) throw new Error('沒有收到雪場資料');
 
-      const byId = new Map((state.data?.watches || []).map((watch) => [watch.id, watch]));
-      incoming.forEach((watch) => byId.set(watch.id, watch));
-      state.data.watches = Array.from(byId.values());
+      state.data.watches = incoming;
       state.data.checked_at = payload.checked_at || new Date().toISOString();
+      state.data.source = payload.source || 'manual-search';
       state.filters.priceMax = null;
 
       const lastChecked = document.querySelector('#lastChecked');
@@ -188,7 +189,7 @@
       }
 
       renderAll();
-      setSearchStatus(payload.cached ? '已載入 6 小時快取結果' : '已更新即時房價', 'success');
+      setSearchStatus(payload.cached ? '已載入 6 小時快取結果' : '已更新五個雪場即時房價', 'success');
     } catch (error) {
       setSearchStatus(error instanceof Error ? error.message : String(error), 'error');
     } finally {
@@ -235,7 +236,6 @@
     renderAll();
   }
 
-  const originalRenderSearchBar = renderSearchBar;
   renderSearchBar = function enhancedRenderSearchBar() {
     const watches = selectedWatches();
     const destination = document.querySelector('#searchDestination');
