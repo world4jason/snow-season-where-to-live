@@ -15,20 +15,37 @@ const jsonResponse = (value, status = 200) => new Response(JSON.stringify(value,
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+function parseDateOnly(value) {
+  const text = String(value || '');
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(text);
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (
+    date.getUTCFullYear() !== year
+    || date.getUTCMonth() !== month - 1
+    || date.getUTCDate() !== day
+  ) return null;
+  return date;
+}
+
 function nightsBetween(start, end) {
-  const a = Date.parse(`${start}T00:00:00Z`);
-  const b = Date.parse(`${end}T00:00:00Z`);
-  return Math.max(1, Math.round((b - a) / 86400000));
+  const a = parseDateOnly(start);
+  const b = parseDateOnly(end);
+  if (!a || !b) return 0;
+  return Math.round((b.getTime() - a.getTime()) / 86400000);
 }
 
 function haversineKm(lat1, lon1, lat2, lon2) {
   const toRad = (deg) => (deg * Math.PI) / 180;
-  const R = 6371.0088;
+  const radius = 6371.0088;
   const dLat = toRad(lat2 - lat1);
   const dLon = toRad(lon2 - lon1);
   const a = Math.sin(dLat / 2) ** 2
     + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return radius * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
 function flattenText(value) {
@@ -42,7 +59,7 @@ function flattenText(value) {
 function explicitTags(prop) {
   const text = flattenText({
     amenities: prop.amenities,
-    descriptions: prop.description,
+    description: prop.description,
     nearby: prop.nearby_places,
     prices: prop.prices,
     deal: prop.deal,
@@ -69,7 +86,7 @@ function googleMapsUrl(prop, watch) {
 function normalizeProperty(prop, watch, center, nights) {
   let nightly = prop?.rate_per_night?.extracted_lowest ?? prop?.extracted_price ?? null;
   const total = prop?.total_rate?.extracted_lowest ?? null;
-  if (nightly == null && total != null) nightly = Math.round(Number(total) / nights);
+  if (nightly == null && total != null && nights > 0) nightly = Math.round(Number(total) / nights);
 
   const prices = Array.isArray(prop.prices) ? prop.prices : [];
   let source = prop.source || prices[0]?.source || 'Google Hotels';
@@ -115,9 +132,14 @@ function normalizeProperty(prop, watch, center, nights) {
 }
 
 async function loadWatches() {
-  const response = await fetch(WATCHES_URL, { headers: { Accept: 'application/json' } });
+  const response = await fetch(WATCHES_URL, {
+    headers: { Accept: 'application/json' },
+    cf: { cacheTtl: 0, cacheEverything: false },
+  });
   if (!response.ok) throw new Error(`Unable to load watches: HTTP ${response.status}`);
-  return response.json();
+  const watches = await response.json();
+  if (!Array.isArray(watches)) throw new Error('watches.json must contain an array');
+  return watches;
 }
 
 async function geocode(env, watch, shouldDelay = false) {
@@ -168,6 +190,10 @@ async function searchHotels(env, watch) {
   return payload;
 }
 
+function manualCacheKey(watch) {
+  return `manual:${watch.id}:${watch.check_in}:${watch.check_out}:${watch.adults || 2}:${Math.round(Number(watch.max_price_per_night))}`;
+}
+
 async function buildWatchResult(env, watch, shouldDelayGeocode = false) {
   const nights = nightsBetween(watch.check_in, watch.check_out);
   let center = null;
@@ -209,14 +235,14 @@ async function refresh(env) {
     const current = await buildWatchResult(env, watch, !hasCachedCenter && geocodeMisses > 0);
     if (!hasCachedCenter) geocodeMisses += 1;
     output.watches.push(current);
+
+    if (!current.error) {
+      await env.CACHE.put(manualCacheKey(current), JSON.stringify(current), { expirationTtl: MANUAL_CACHE_TTL });
+    }
   }
 
   await env.CACHE.put('latest', JSON.stringify(output));
   return output;
-}
-
-function validDateOnly(value) {
-  return /^\d{4}-\d{2}-\d{2}$/.test(String(value || '')) && Number.isFinite(Date.parse(`${value}T00:00:00Z`));
 }
 
 async function monthlyManualUsage(env) {
@@ -249,14 +275,12 @@ async function manualSearch(request, env) {
   const checkOut = String(body?.check_out || '');
   const adults = Number(body?.adults ?? 2);
   const maxPrice = Number(body?.max_price_per_night ?? 6000);
+  const start = parseDateOnly(checkIn);
+  const end = parseDateOnly(checkOut);
 
-  if (!validDateOnly(checkIn) || !validDateOnly(checkOut)) {
-    return jsonResponse({ error: 'Dates must use YYYY-MM-DD' }, 400);
-  }
+  if (!start || !end) return jsonResponse({ error: 'Dates must be valid YYYY-MM-DD calendar dates' }, 400);
   const nights = nightsBetween(checkIn, checkOut);
-  if (checkOut <= checkIn || nights < 1 || nights > 14) {
-    return jsonResponse({ error: 'Stay must be between 1 and 14 nights' }, 400);
-  }
+  if (nights < 1 || nights > 14) return jsonResponse({ error: 'Stay must be between 1 and 14 nights' }, 400);
   if (!Number.isInteger(adults) || adults < 1 || adults > 6) {
     return jsonResponse({ error: 'Adults must be an integer between 1 and 6' }, 400);
   }
@@ -284,10 +308,17 @@ async function manualSearch(request, env) {
   const cachedResults = [];
   const misses = [];
   for (const baseWatch of selected) {
-    const key = `manual:${baseWatch.id}:${checkIn}:${checkOut}:${adults}:${Math.round(maxPrice)}`;
+    const watch = {
+      ...baseWatch,
+      check_in: checkIn,
+      check_out: checkOut,
+      adults,
+      max_price_per_night: Math.round(maxPrice),
+    };
+    const key = manualCacheKey(watch);
     const cached = await env.CACHE.get(key, 'json');
     if (cached) cachedResults.push(cached);
-    else misses.push({ baseWatch, key });
+    else misses.push({ watch, key });
   }
 
   let usage = null;
@@ -303,19 +334,14 @@ async function manualSearch(request, env) {
 
   const freshResults = [];
   let geocodeMisses = 0;
-  for (const { baseWatch, key } of misses) {
-    const watch = {
-      ...baseWatch,
-      check_in: checkIn,
-      check_out: checkOut,
-      adults,
-      max_price_per_night: Math.round(maxPrice),
-    };
+  for (const { watch, key } of misses) {
     const hasCachedCenter = Boolean(await env.CACHE.get(`geo:${watch.id}`));
     const current = await buildWatchResult(env, watch, !hasCachedCenter && geocodeMisses > 0);
     if (!hasCachedCenter) geocodeMisses += 1;
     freshResults.push(current);
-    await env.CACHE.put(key, JSON.stringify(current), { expirationTtl: MANUAL_CACHE_TTL });
+    if (!current.error) {
+      await env.CACHE.put(key, JSON.stringify(current), { expirationTtl: MANUAL_CACHE_TTL });
+    }
   }
 
   const resultById = new Map([...cachedResults, ...freshResults].map((watch) => [watch.id, watch]));
@@ -333,6 +359,7 @@ async function status(env) {
   const manual = await monthlyManualUsage(env);
   let serpapi = null;
   let serpapiError = null;
+
   if (env.SERPAPI_KEY) {
     try {
       const params = new URLSearchParams({ api_key: env.SERPAPI_KEY });
