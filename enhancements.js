@@ -35,6 +35,19 @@
     if (force || draft.budget == null) draft.budget = Number(commonValue(watches, 'max_price_per_night', first.max_price_per_night || 6000)) || 6000;
   }
 
+  function monitoredWatches() {
+    return (state.data?.watches || []).filter((watch) => watch.auto_monitor === true);
+  }
+
+  function requestedResortIds() {
+    if (state.selectedResort !== 'all') return [state.selectedResort];
+    return monitoredWatches().map((watch) => watch.id);
+  }
+
+  function searchButtonLabel() {
+    return state.selectedResort === 'all' ? '更新每日監控' : '搜尋此住宿區';
+  }
+
   function decorateHotelCards() {
     const rows = new Map(baseHotelRows().map((row) => [row.key, row]));
     document.querySelectorAll('.hotel-card').forEach((card) => {
@@ -92,18 +105,45 @@
     `).join('');
   }
 
+  function renderLodgingNote() {
+    const resultColumn = document.querySelector('.results-column');
+    const resultList = document.querySelector('#hotelResults');
+    if (!resultColumn || !resultList) return;
+
+    let note = document.querySelector('#lodgingStrategyNote');
+    if (!note) {
+      note = document.createElement('div');
+      note.id = 'lodgingStrategyNote';
+      note.className = 'lodging-strategy-note';
+      resultColumn.insertBefore(note, resultList);
+    }
+
+    const watch = state.selectedResort === 'all' ? null : selectedWatches()[0];
+    if (!watch?.lodging_note) {
+      note.hidden = true;
+      note.textContent = '';
+      return;
+    }
+
+    note.hidden = false;
+    note.innerHTML = `<strong>住宿範圍</strong><span>${escapeHtml(watch.lodging_note)}</span>`;
+  }
+
   function mountDestinationControl() {
     const host = document.querySelector('#searchDestination');
     const allWatches = state.data?.watches || [];
     if (!host) return;
 
     const fieldLabel = document.querySelector('.search-destination .field-label');
-    if (fieldLabel) fieldLabel.textContent = '顯示雪場';
+    if (fieldLabel) fieldLabel.textContent = '顯示住宿區';
 
     host.innerHTML = `
-      <select id="liveResortView" class="destination-inline-select" aria-label="顯示雪場">
-        <option value="all" ${state.selectedResort === 'all' ? 'selected' : ''}>全部 ${allWatches.length} 個雪場</option>
-        ${allWatches.map((watch) => `<option value="${escapeHtml(watch.id)}" ${state.selectedResort === watch.id ? 'selected' : ''}>${escapeHtml(watch.name)}</option>`).join('')}
+      <select id="liveResortView" class="destination-inline-select" aria-label="顯示住宿區">
+        <option value="all" ${state.selectedResort === 'all' ? 'selected' : ''}>全部 ${allWatches.length} 個住宿區</option>
+        ${allWatches.map((watch) => {
+          const suffix = watch.auto_monitor ? ' · 每日監控' : '';
+          return `<option value="${escapeHtml(watch.id)}" ${state.selectedResort === watch.id ? 'selected' : ''}>${escapeHtml(watch.name + suffix)}</option>`;
+        }).join('')}
       </select>
     `;
 
@@ -141,10 +181,7 @@
 
     if (budgetHost) {
       budgetHost.innerHTML = `
-        <div class="budget-input-wrap">
-          <span class="budget-prefix">NT$</span>
-          <input id="liveBudget" class="search-inline-input" type="number" min="500" max="30000" step="250" value="${Number(draft.budget || 6000)}" inputmode="numeric" aria-label="每晚最高預算" />
-        </div>
+        <input id="liveBudget" class="search-inline-input" type="number" min="500" max="30000" step="250" value="${Number(draft.budget || 6000)}" inputmode="numeric" aria-label="每晚最高預算（新台幣）" />
       `;
     }
 
@@ -171,11 +208,13 @@
       button.dataset.bound = 'true';
       button.addEventListener('click', runLiveSearch);
     }
+    if (button) button.textContent = searchButtonLabel();
 
     const selected = selectedWatches()[0]?.name;
+    const autoCount = monitoredWatches().length;
     setSearchStatus(state.selectedResort === 'all'
-      ? `搜尋全部 ${allWatches.length} 個雪場`
-      : `搜尋會更新全部 ${allWatches.length} 個雪場；目前顯示 ${selected || '所選雪場'}`);
+      ? `全部頁只更新 ${autoCount} 個每日監控住宿區，保護免費額度`
+      : `只查 ${selected || '目前住宿區'}，一次約用 1 次 SerpApi`);
   }
 
   function setSearchStatus(message, type = '') {
@@ -193,6 +232,7 @@
     const adults = Number(document.querySelector('#liveGuests')?.value || draft.adults || 2);
     const budget = Number(document.querySelector('#liveBudget')?.value || draft.budget || 0);
     const button = document.querySelector('#liveSearchButton');
+    const resortIds = requestedResortIds();
 
     draft.checkIn = checkIn;
     draft.checkOut = checkOut;
@@ -200,6 +240,7 @@
     draft.budget = budget;
 
     if (!apiBase) return setSearchStatus('Cloudflare API 尚未設定', 'error');
+    if (!resortIds.length) return setSearchStatus('目前沒有可查詢的住宿區', 'error');
     if (!checkIn || !checkOut || checkOut <= checkIn) return setSearchStatus('請選有效的入住 / 退房日期', 'error');
 
     const nights = Math.round((Date.parse(`${checkOut}T00:00:00Z`) - Date.parse(`${checkIn}T00:00:00Z`)) / 86400000);
@@ -211,14 +252,14 @@
       button.disabled = true;
       button.textContent = '搜尋中…';
     }
-    setSearchStatus(`正在更新全部 ${state.data?.watches?.length || 5} 個雪場…`);
+    setSearchStatus(`正在查 ${resortIds.length} 個住宿區…`);
 
     try {
       const response = await fetch(`${apiBase}/api/search`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          resort_ids: 'all',
+          resort_ids: resortIds,
           check_in: checkIn,
           check_out: checkOut,
           adults,
@@ -232,13 +273,14 @@
       }
 
       const incoming = payload.watches || [];
-      if (!incoming.length) throw new Error('沒有收到雪場資料');
+      if (!incoming.length) throw new Error('沒有收到住宿區資料');
 
-      state.data.watches = incoming;
+      const byId = new Map((state.data?.watches || []).map((watch) => [watch.id, watch]));
+      incoming.forEach((watch) => byId.set(watch.id, { ...watch, pending: false }));
+      state.data.watches = Array.from(byId.values());
       state.data.checked_at = payload.checked_at || new Date().toISOString();
       state.data.source = payload.source || 'manual-search';
       state.filters.priceMax = null;
-      syncDraftFromData(true);
 
       const lastChecked = document.querySelector('#lastChecked');
       if (lastChecked) {
@@ -251,9 +293,10 @@
       renderAll();
       const failures = incoming.filter((watch) => watch.error);
       if (failures.length) {
-        setSearchStatus(`已完成，但 ${failures.length} 個雪場查詢失敗`, 'error');
+        setSearchStatus(`已完成，但 ${failures.length} 個住宿區查詢失敗`, 'error');
       } else {
-        setSearchStatus(payload.cached ? '已載入 6 小時快取結果' : '已更新五個雪場即時房價', 'success');
+        const label = incoming.length === 1 ? incoming[0].name : `${incoming.length} 個每日監控住宿區`;
+        setSearchStatus(payload.cached ? `${label}：已載入 6 小時快取` : `${label}：已更新即時房價`, 'success');
       }
     } catch (error) {
       setSearchStatus(error instanceof Error ? error.message : String(error), 'error');
@@ -261,7 +304,7 @@
       const currentButton = document.querySelector('#liveSearchButton');
       if (currentButton) {
         currentButton.disabled = false;
-        currentButton.textContent = '搜尋房間';
+        currentButton.textContent = searchButtonLabel();
       }
     }
   }
@@ -284,20 +327,27 @@
 
     if (!state.data) state.data = { checked_at: null, watches: [] };
     const existing = new Map((state.data.watches || []).map((watch) => [watch.id, watch]));
+    const ordered = [];
+
     config.forEach((watch) => {
-      if (!existing.has(watch.id)) {
-        existing.set(watch.id, {
+      const current = existing.get(watch.id);
+      if (current) {
+        ordered.push({ ...watch, ...current });
+      } else {
+        ordered.push({
           ...watch,
           nights: Math.max(1, Math.round((Date.parse(`${watch.check_out}T00:00:00Z`) - Date.parse(`${watch.check_in}T00:00:00Z`)) / 86400000)),
           center: null,
           match_count: 0,
           lowest_price: null,
           properties: [],
-          error: '尚未取得這個雪場的資料，請按「搜尋房間」更新。',
+          error: null,
+          pending: true,
         });
       }
     });
-    state.data.watches = Array.from(existing.values());
+
+    state.data.watches = ordered;
     syncDraftFromData();
     renderAll();
   }
@@ -312,6 +362,7 @@
     originalRenderResults();
     decorateHotelCards();
     renderQueryWarnings();
+    renderLodgingNote();
   };
 
   hydrateMissingWatches();
