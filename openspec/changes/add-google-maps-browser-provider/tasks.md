@@ -5,7 +5,7 @@
 - [x] 1.1 Document current hotel-search behavior in `openspec/specs/hotel-search/spec.md`.
 - [x] 1.2 Define future provider-neutral behavior, one-room parity, typed failures, fallback, and parity gates.
 - [x] 1.3 Define Browser Run design and resource constraints.
-- [ ] 1.4 Complete spec review with no blocking findings before code changes.
+- [x] 1.4 Complete spec review with no blocking findings before code changes.
 
 ## 2. Cloudflare Browser Run foundation
 
