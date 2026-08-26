@@ -44,14 +44,6 @@
   letter-spacing: -.04em;
 }
 
-.budget-input-wrap {
-  display: flex;
-  align-items: center;
-  gap: 0;
-}
-
-.budget-prefix { display: none; }
-
 .date-arrow {
   flex: 0 0 auto;
   color: var(--muted);
@@ -93,22 +85,39 @@
 .date-search-status.success { color: #067647; }
 .date-search-status.error { color: #b42318; }
 
-.query-warning {
+.query-warning,
+.lodging-strategy-note {
   display: grid;
-  gap: 7px;
+  gap: 4px;
   margin-bottom: 12px;
   padding: 11px 13px;
-  border: 1px solid #f7b5ae;
   border-radius: 12px;
+  font-size: 11px;
+  line-height: 1.5;
+}
+.query-warning {
+  gap: 7px;
+  border: 1px solid #f7b5ae;
   background: #fff4f2;
   color: #912018;
-  font-size: 11px;
-  line-height: 1.45;
 }
-.query-warning[hidden] { display: none; }
+.query-warning[hidden],
+.lodging-strategy-note[hidden] { display: none; }
 .query-warning > div { display: grid; gap: 2px; }
 .query-warning strong { font-size: 12px; }
 .query-warning span { overflow-wrap: anywhere; }
+
+.lodging-strategy-note {
+  grid-template-columns: auto 1fr;
+  align-items: start;
+  border: 1px solid #b7d0fb;
+  background: #f2f7ff;
+  color: #344054;
+}
+.lodging-strategy-note strong {
+  color: #174ea6;
+  white-space: nowrap;
+}
 
 .google-maps-link {
   width: 100%;
@@ -150,4 +159,5 @@
     min-width: 128px;
   }
   .search-submit-button { min-height: 48px; }
+  .lodging-strategy-note { grid-template-columns: 1fr; }
 }
