@@ -4,7 +4,6 @@ const WATCHES_URL = 'https://raw.githubusercontent.com/world4jason/snow-season-w
 const EXTRA_WATCHES_URL = 'https://raw.githubusercontent.com/world4jason/snow-season-where-to-live/main/config/extra-watches.json';
 const EXCLUSIONS_URL = 'https://raw.githubusercontent.com/world4jason/snow-season-where-to-live/main/config/excluded-resorts.json';
 const MONITOR_CONFIG_KEY = 'monitor-config:v1';
-const MAX_MONITOR_ROWS = 12;
 const MAX_ENABLED_MONITORS = 5;
 const SCHEDULE_UTC = '20 0 * * *';
 
@@ -50,6 +49,27 @@ function nightsBetween(start, end) {
   return Math.round((b.getTime() - a.getTime()) / 86400000);
 }
 
+function normalizeGoogleMapsUrl(value, rowNumber) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  if (raw.length > 2048) throw new Error(`Row ${rowNumber}: Google Maps URL is too long`);
+  let url;
+  try {
+    url = new URL(raw);
+  } catch {
+    throw new Error(`Row ${rowNumber}: invalid Google Maps URL`);
+  }
+  const host = url.hostname.toLowerCase();
+  const allowedHost = host === 'google.com'
+    || host === 'www.google.com'
+    || host === 'maps.google.com'
+    || host.endsWith('.google.com');
+  if (!allowedHost || !url.pathname.includes('/maps/')) {
+    throw new Error(`Row ${rowNumber}: only google.com/maps URLs are accepted`);
+  }
+  return url.href;
+}
+
 async function loadJsonArray(url, label) {
   const response = await fetch(url, {
     headers: { Accept: 'application/json' },
@@ -86,6 +106,7 @@ function defaultMonitors(catalog) {
       check_out: String(watch.check_out || ''),
       adults: Number(watch.adults || 2),
       max_price_per_night: Number(watch.max_price_per_night || 6000),
+      google_maps_url: '',
     }));
 }
 
@@ -109,32 +130,33 @@ async function readMonitorConfig(env, catalog) {
 
 function validateMonitors(rows, catalog) {
   if (!Array.isArray(rows)) throw new Error('monitors must be an array');
-  if (rows.length > MAX_MONITOR_ROWS) throw new Error(`At most ${MAX_MONITOR_ROWS} monitor rows are allowed`);
+  if (rows.length > catalog.length) throw new Error(`At most ${catalog.length} saved lodging areas are allowed`);
 
   const catalogById = new Map(catalog.map((watch) => [String(watch.id), watch]));
   const seen = new Set();
   const normalized = rows.map((row, index) => {
+    const rowNumber = index + 1;
     const resortId = String(row?.resort_id || '').trim();
-    if (!catalogById.has(resortId)) throw new Error(`Row ${index + 1}: unknown lodging area`);
-    if (seen.has(resortId)) throw new Error(`Row ${index + 1}: duplicate lodging area`);
+    if (!catalogById.has(resortId)) throw new Error(`Row ${rowNumber}: unknown lodging area`);
+    if (seen.has(resortId)) throw new Error(`Row ${rowNumber}: duplicate lodging area`);
     seen.add(resortId);
 
     const checkIn = String(row?.check_in || '');
     const checkOut = String(row?.check_out || '');
     if (!parseDateOnly(checkIn) || !parseDateOnly(checkOut)) {
-      throw new Error(`Row ${index + 1}: dates must be valid YYYY-MM-DD dates`);
+      throw new Error(`Row ${rowNumber}: dates must be valid YYYY-MM-DD dates`);
     }
     const nights = nightsBetween(checkIn, checkOut);
-    if (nights < 1 || nights > 14) throw new Error(`Row ${index + 1}: stay must be 1–14 nights`);
+    if (nights < 1 || nights > 14) throw new Error(`Row ${rowNumber}: stay must be 1–14 nights`);
 
     const adults = Number(row?.adults ?? 2);
     if (!Number.isInteger(adults) || adults < 1 || adults > 6) {
-      throw new Error(`Row ${index + 1}: adults must be 1–6`);
+      throw new Error(`Row ${rowNumber}: adults must be 1–6`);
     }
 
     const budget = Number(row?.max_price_per_night ?? 6000);
     if (!Number.isFinite(budget) || budget < 500 || budget > 30000) {
-      throw new Error(`Row ${index + 1}: nightly budget must be TWD 500–30,000`);
+      throw new Error(`Row ${rowNumber}: nightly budget must be TWD 500–30,000`);
     }
 
     return {
@@ -144,6 +166,7 @@ function validateMonitors(rows, catalog) {
       check_out: checkOut,
       adults,
       max_price_per_night: Math.round(budget),
+      google_maps_url: normalizeGoogleMapsUrl(row?.google_maps_url, rowNumber),
     };
   });
 
@@ -154,8 +177,9 @@ function validateMonitors(rows, catalog) {
   return normalized;
 }
 
-function publicMonitorSummary(config) {
+function publicMonitorSummary(config, catalogCount = null) {
   const enabled = config.monitors.filter((row) => row.enabled !== false);
+  const references = config.monitors.filter((row) => String(row.google_maps_url || '').trim()).length;
   return {
     schedule_utc: SCHEDULE_UTC,
     schedule_taiwan: '08:20',
@@ -164,6 +188,9 @@ function publicMonitorSummary(config) {
     enabled_count: enabled.length,
     enabled_resort_ids: enabled.map((row) => row.resort_id),
     max_enabled: MAX_ENABLED_MONITORS,
+    saved_area_count: config.monitors.length,
+    google_maps_reference_count: references,
+    max_saved_areas: catalogCount,
     estimated_daily_max_searches: enabled.length,
     estimated_31_day_max_searches: enabled.length * 31,
   };
@@ -262,7 +289,7 @@ async function handleMonitorSummary(env) {
   const catalog = await loadActiveCatalog();
   const config = await readMonitorConfig(env, catalog);
   const monitors = validateMonitors(config.monitors, catalog);
-  return jsonResponse(publicMonitorSummary({ ...config, monitors }));
+  return jsonResponse(publicMonitorSummary({ ...config, monitors }, catalog.length));
 }
 
 async function handleGetMonitors(request, env) {
@@ -272,7 +299,7 @@ async function handleGetMonitors(request, env) {
   const config = await readMonitorConfig(env, catalog);
   const monitors = validateMonitors(config.monitors, catalog);
   return jsonResponse({
-    ...publicMonitorSummary({ ...config, monitors }),
+    ...publicMonitorSummary({ ...config, monitors }, catalog.length),
     monitors,
   });
 }
@@ -298,7 +325,7 @@ async function handlePutMonitors(request, env) {
     };
     await env.CACHE.put(MONITOR_CONFIG_KEY, JSON.stringify(stored));
     return jsonResponse({
-      ...publicMonitorSummary({ ...stored, source: 'kv' }),
+      ...publicMonitorSummary({ ...stored, source: 'kv' }, catalog.length),
       monitors,
     });
   } catch (err) {
@@ -319,7 +346,7 @@ async function enhancedStatus(request, env, ctx) {
   const catalog = await loadActiveCatalog();
   const config = await readMonitorConfig(env, catalog);
   const monitors = validateMonitors(config.monitors, catalog);
-  const summary = publicMonitorSummary({ ...config, monitors });
+  const summary = publicMonitorSummary({ ...config, monitors }, catalog.length);
   payload.automatic_searches_per_run = summary.enabled_count;
   payload.automatic_resort_ids = summary.enabled_resort_ids;
   payload.estimated_monitored_refresh_cost = summary.enabled_count;
@@ -327,6 +354,8 @@ async function enhancedStatus(request, env, ctx) {
   payload.monitor_config_source = summary.source;
   payload.monitor_updated_at = summary.updated_at;
   payload.monitor_max_enabled = summary.max_enabled;
+  payload.monitor_saved_area_count = summary.saved_area_count;
+  payload.monitor_google_maps_reference_count = summary.google_maps_reference_count;
 
   return jsonResponse(payload, response.status);
 }
