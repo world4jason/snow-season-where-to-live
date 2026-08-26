@@ -1,5 +1,8 @@
 const BASE = (process.env.SNOW_API_BASE || 'https://snow-season-where-to-live-api.world4jason.workers.dev').replace(/\/$/, '');
 const FORCE_REAL_REFRESH = process.env.SMOKE_FORCE_REFRESH === '1';
+const ADMIN_TOKEN = String(process.env.SMOKE_ADMIN_TOKEN || '').trim();
+const RUN_PROVIDER_COMPARE = process.env.SMOKE_PROVIDER_COMPARE === '1';
+const BROWSER_MAPS_URL = process.env.SMOKE_BROWSER_URL || 'https://www.google.com/maps/search/%E9%A3%AF%E5%BA%97/@36.9219703,138.4445113,15.02z/data=!4m8!2m7!5m5!5m3!1s2027-01-15!4m1!1i2!9i8800!6e3?entry=ttu';
 
 await import('../google-maps-url.js');
 const MapsUrl = globalThis.GoogleMapsHotelUrl;
@@ -26,6 +29,19 @@ const searchBody = (overrides = {}) => ({
   check_out: '2027-01-18',
   adults: 2,
   max_price_per_night: 6000,
+  ...overrides,
+});
+
+const browserBody = (overrides = {}) => ({
+  resort_id: 'nozawa-jan',
+  google_maps_url: BROWSER_MAPS_URL,
+  check_in: '2027-01-15',
+  check_out: '2027-01-18',
+  adults: 2,
+  rooms: 1,
+  currency: 'TWD',
+  max_price_per_night: 8800,
+  max_results: 20,
   ...overrides,
 });
 
@@ -74,11 +90,14 @@ console.log(`Testing ${BASE}\n`);
   ok(Number(body?.serpapi_pool?.key_count) >= 1, '/api/status exposes at least one configured SerpApi key');
   ok(Array.isArray(body?.serpapi_pool?.keys), '/api/status exposes safe key-pool health metadata');
   ok(Number(body?.monitor_google_maps_reference_count ?? 0) >= 0, '/api/status exposes Google Maps reference count');
+  ok(body?.browser_provider?.mode === 'shadow', '/api/status keeps Browser Run provider in shadow mode');
+  ok(body?.browser_provider?.normal_search_uses_browser === false, '/api/status confirms normal search still uses SerpApi');
+  ok(Array.isArray(body?.browser_provider?.rooms_supported) && body.browser_provider.rooms_supported.includes(1), '/api/status exposes rooms=1 parity scope');
 
   if (body?.serpapi) {
     console.log(`INFO  SerpApi plan=${body.serpapi.plan_name ?? 'unknown'} usage=${body.serpapi.this_month_usage ?? '?'} left=${body.serpapi.total_searches_left ?? '?'}`);
   }
-  console.log(`INFO  configured monitors=${body?.automatic_searches_per_run ?? 0}, Maps refs=${body?.monitor_google_maps_reference_count ?? 0}`);
+  console.log(`INFO  configured monitors=${body?.automatic_searches_per_run ?? 0}, Maps refs=${body?.monitor_google_maps_reference_count ?? 0}, browser binding=${body?.browser_provider?.browser_binding_configured === true}`);
 }
 
 {
@@ -92,6 +111,24 @@ console.log(`Testing ${BASE}\n`);
 {
   const { response } = await jsonRequest('/api/monitors');
   ok([401, 503].includes(response.status), '/api/monitors does not expose private monitor conditions without ADMIN_TOKEN');
+}
+
+{
+  const { response } = await jsonRequest('/api/providers/google-maps-browser/search', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(browserBody()),
+  });
+  ok([401, 503].includes(response.status), '/api/providers/google-maps-browser/search requires ADMIN_TOKEN');
+}
+
+{
+  const { response } = await jsonRequest('/api/providers/compare', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(browserBody()),
+  });
+  ok([401, 503].includes(response.status), '/api/providers/compare requires ADMIN_TOKEN');
 }
 
 {
@@ -161,6 +198,39 @@ console.log(`Testing ${BASE}\n`);
   }
 
   console.log(`INFO  Sugadaira live result count=${watch.match_count}, cached=${body.cached === true}, search_status=${watch.search_status ?? 'unknown'}`);
+}
+
+if (ADMIN_TOKEN) {
+  const { response, body } = await jsonRequest('/api/providers/google-maps-browser/search', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${ADMIN_TOKEN}`,
+    },
+    body: JSON.stringify(browserBody()),
+  });
+  ok(response.ok, 'Browser Run admin POC endpoint returns a typed response');
+  ok(body?.provider === 'google_maps_browser', 'Browser Run POC identifies google_maps_browser provider');
+  ok(typeof body?.provider_status === 'string', 'Browser Run POC returns typed provider status');
+  console.log(`INFO  browser provider status=${body.provider_status}, results=${body.match_count ?? 0}, elapsed=${body.browser_elapsed_ms ?? '?'}ms`);
+
+  if (RUN_PROVIDER_COMPARE) {
+    const compared = await jsonRequest('/api/providers/compare', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${ADMIN_TOKEN}`,
+      },
+      body: JSON.stringify(browserBody()),
+    });
+    ok(compared.response.ok, 'Provider compare endpoint returns 2xx');
+    ok(compared.body?.provider_mode === 'shadow', 'Provider compare remains shadow-only');
+    console.log(`INFO  parity pass=${compared.body?.parity_pass === true}, overlap=${compared.body?.parity?.top10_overlap ?? '?'}, price agreement=${compared.body?.parity?.price_agreement ?? '?'}`);
+  } else {
+    console.log('INFO  skipped SerpApi parity comparison; set SMOKE_PROVIDER_COMPARE=1 with SMOKE_ADMIN_TOKEN to run it intentionally.');
+  }
+} else {
+  console.log('INFO  skipped Browser Run live POC; set SMOKE_ADMIN_TOKEN to run browser-only extraction.');
 }
 
 if (FORCE_REAL_REFRESH) {
