@@ -1,0 +1,95 @@
+{
+  "updated_at": "2026-08-26",
+  "notes": [
+    "Do not combine these lists into one absolute Top 20. They measure different things.",
+    "Popularity is season-specific and can change over time.",
+    "Course-area figures are not perfectly standardized between resorts.",
+    "Representative scale is a discovery list mixing linked-area piste length and course counts, so it is not treated as a strict numeric ranking."
+  ],
+  "longest_run": {
+    "label": "單一最長滑走距離",
+    "source": "Tabiris / スキー・スノボ研究所",
+    "source_url": "https://snow.tabiris.com/ranking09.html",
+    "definition": "Longest possible continuous run at each ski area; current source lists resorts at 6000m or longer.",
+    "items": [
+      {"rank": 1, "name": "野沢温泉", "meters": 10000},
+      {"rank": 2, "name": "蔵王温泉", "meters": 9000},
+      {"rank": 3, "name": "妙高杉ノ原", "meters": 8500},
+      {"rank": 4, "name": "白馬八方尾根", "meters": 8000},
+      {"rank": 5, "name": "おんたけ2240", "meters": 7000},
+      {"rank": 6, "name": "Hakuba47", "meters": 6400},
+      {"rank": 7, "name": "サッポロテイネ", "meters": 6000},
+      {"rank": 7, "name": "天元台高原", "meters": 6000},
+      {"rank": 7, "name": "上越国際", "meters": 6000},
+      {"rank": 7, "name": "舞子", "meters": 6000},
+      {"rank": 7, "name": "湯沢高原", "meters": 6000},
+      {"rank": 7, "name": "かぐら", "meters": 6000},
+      {"rank": 7, "name": "竜王", "meters": 6000}
+    ]
+  },
+  "popularity_2025_2026": {
+    "label": "Weathernews 全國人氣／關注度",
+    "source": "Weathernews",
+    "source_url": "https://weathernews.jp/ski/ranking.html",
+    "definition": "Calculated from page access and Weathernews proprietary criteria; season-specific.",
+    "items": [
+      {"rank": 1, "name": "かぐらスキー場"},
+      {"rank": 2, "name": "横手山・渋峠スキー場"},
+      {"rank": 3, "name": "大雪山黒岳スキー場"},
+      {"rank": 4, "name": "菅平高原スノーリゾート"},
+      {"rank": 5, "name": "アライマウンテンリゾート"},
+      {"rank": 6, "name": "茶臼山高原スキー場"},
+      {"rank": 7, "name": "奥只見丸山スキー場"},
+      {"rank": 8, "name": "蔵王温泉スキー場"},
+      {"rank": 9, "name": "丸沼高原スキー場"},
+      {"rank": 10, "name": "白馬八方尾根"},
+      {"rank": 11, "name": "ハチ高原"},
+      {"rank": 12, "name": "富良野スキー場"},
+      {"rank": 13, "name": "苗場スキー場"},
+      {"rank": 14, "name": "志賀高原焼額山"},
+      {"rank": 15, "name": "びわ湖バレイ"},
+      {"rank": 16, "name": "グランスノー奥伊吹"},
+      {"rank": 17, "name": "中央アルプス千畳敷スキー場"},
+      {"rank": 18, "name": "白馬岩岳スノーフィールド"},
+      {"rank": 19, "name": "八甲田"},
+      {"rank": 20, "name": "野沢温泉スキー場"}
+    ]
+  },
+  "course_area_current": {
+    "label": "コース面積",
+    "source": "Tabiris / スキー・スノボ研究所",
+    "source_url": "https://snow.tabiris.com/ranking10.html",
+    "definition": "Published course area. Source explicitly warns that resort definitions and reported figures are not perfectly standardized.",
+    "items": [
+      {"rank": 1, "name": "志賀高原", "hectares": 400},
+      {"rank": 2, "name": "上越国際", "hectares": 380},
+      {"rank": 3, "name": "蔵王温泉", "hectares": 305},
+      {"rank": 4, "name": "野沢温泉", "hectares": 297},
+      {"rank": 5, "name": "安比高原", "hectares": 282},
+      {"rank": 6, "name": "ルスツ", "hectares": 236},
+      {"rank": 7, "name": "かぐら", "hectares": 220},
+      {"rank": 7, "name": "白馬八方尾根", "hectares": 220},
+      {"rank": 8, "name": "ネコマ", "hectares": 189},
+      {"rank": 9, "name": "富良野", "hectares": 168},
+      {"rank": 10, "name": "カムイ", "hectares": 165},
+      {"rank": 11, "name": "アライ", "hectares": 157},
+      {"rank": 12, "name": "つがいけ", "hectares": 156},
+      {"rank": 13, "name": "ニセコグラン・ヒラフ", "hectares": 149},
+      {"rank": 14, "name": "立山山麓", "hectares": 140},
+      {"rank": 15, "name": "戸狩温泉", "hectares": 135},
+      {"rank": 16, "name": "マウントレースイ", "hectares": 134},
+      {"rank": 17, "name": "苗場", "hectares": 134},
+      {"rank": 18, "name": "雫石", "hectares": 130},
+      {"rank": 19, "name": "岩原", "hectares": 130},
+      {"rank": 20, "name": "神立", "hectares": 130}
+    ]
+  },
+  "representative_scale": {
+    "label": "規模代表清單（非嚴格排名）",
+    "source": "User-provided Snoway-style synthesis; retained as a discovery set",
+    "definition": "Mixes total linked piste length, course count, and network size. Use as a broad discovery/tag list, not a single comparable metric.",
+    "items": [
+      "志賀高原", "野沢温泉", "Niseko United", "安比高原", "ルスツ", "Hakuba Valley", "蔵王温泉", "富良野", "Mt. Naeba", "斑尾高原・Tangram", "菅平高原", "Nekoma Mountain", "Tomamu", "舞子", "石打丸山", "上越国際", "妙高杉ノ原", "白馬八方尾根", "竜王", "Lotte Arai"
+    ]
+  }
+}
