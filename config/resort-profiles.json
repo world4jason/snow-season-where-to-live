@@ -1,0 +1,334 @@
+{
+  "shiga-central": {
+    "size": "志賀高原 18 雪場・約 80km 級滑走網",
+    "ticket_text": "18 雪場共通券｜官方最新價",
+    "ticket_url": "https://www.shigakogen-ski.or.jp/winter/",
+    "transport": "新幹線 → 長野 → 急行巴士 → 志賀高原 → 區內接駁",
+    "official_links": [{"label":"志賀高原 官方","url":"https://www.shigakogen-ski.or.jp/winter/"}]
+  },
+  "shiga-east": {
+    "size": "志賀高原 18 雪場中的東側大型區",
+    "ticket_text": "18 雪場共通券｜官方最新價",
+    "ticket_url": "https://www.shigakogen-ski.or.jp/winter/",
+    "transport": "新幹線 → 長野 → 急行巴士 → 一之瀨／燒額山 → 接駁",
+    "official_links": [{"label":"志賀高原 官方","url":"https://www.shigakogen-ski.or.jp/winter/"}]
+  },
+  "shiga-west": {
+    "size": "志賀高原 18 雪場中的入口／西側區",
+    "ticket_text": "18 雪場共通券｜官方最新價",
+    "ticket_url": "https://www.shigakogen-ski.or.jp/winter/",
+    "transport": "新幹線 → 長野 → 急行巴士 → 山之站／蓮池 → 徒步或接駁",
+    "official_links": [{"label":"志賀高原 官方","url":"https://www.shigakogen-ski.or.jp/winter/"}]
+  },
+  "shiga-south": {
+    "size": "志賀高原南側：熊之湯／橫手山／澀峠",
+    "ticket_text": "18 雪場共通券｜官方最新價",
+    "ticket_url": "https://www.shigakogen-ski.or.jp/winter/",
+    "transport": "新幹線 → 長野 → 急行巴士 → 熊之湯／橫手山",
+    "official_links": [{"label":"志賀高原 官方","url":"https://www.shigakogen-ski.or.jp/winter/"}]
+  },
+  "hakuba-village": {
+    "size": "Hakuba Valley 10 雪場；此 base 主涵蓋白馬村 5 場",
+    "ticket_text": "Hakuba Valley 2026–27 成人共通 1 日券 ¥11,100",
+    "ticket_url": "https://www.hakubavalley.com/en/ticket_en/",
+    "transport": "新幹線 → 長野 → 巴士 → 白馬村 → 雪場接駁",
+    "official_links": [{"label":"Hakuba Valley 官方","url":"https://www.hakubavalley.com/"}]
+  },
+  "hakuba-otari": {
+    "size": "Hakuba Valley 小谷側 3 場：栂池／乘鞍／Cortina",
+    "ticket_text": "Hakuba Valley 2026–27 成人共通 1 日券 ¥11,100",
+    "ticket_url": "https://www.hakubavalley.com/en/ticket_en/",
+    "transport": "新幹線 → 長野／糸魚川 → 巴士／JR → 小谷・栂池 → 雪場",
+    "official_links": [{"label":"Hakuba Valley 官方","url":"https://www.hakubavalley.com/"}]
+  },
+  "hakuba-omachi": {
+    "size": "Hakuba Valley 大町側 2 場：爺岳／鹿島槍",
+    "ticket_text": "Hakuba Valley 共通券｜官方最新價",
+    "ticket_url": "https://www.hakubavalley.com/en/ticket_en/",
+    "transport": "新幹線 → 長野 → JR／巴士 → 大町 → 雪場接駁",
+    "official_links": [{"label":"Hakuba Valley 官方","url":"https://www.hakubavalley.com/"}]
+  },
+  "niseko-united": {
+    "size": "4 雪場聯合：Grand Hirafu／Hanazono／Niseko Village／Annupuri",
+    "ticket_text": "Niseko United 全山券｜依季節變動",
+    "ticket_url": "https://www.niseko.ne.jp/en/lift/",
+    "transport": "新千歲 → JR／Ski Bus → 倶知安・比羅夫 → Shuttle",
+    "official_links": [{"label":"Niseko United 官方","url":"https://www.niseko.ne.jp/"}]
+  },
+  "myoko-kogen": {
+    "size": "杉之原：90ha・16 courses・最長 8.5km",
+    "ticket_text": "官方最新票價",
+    "ticket_url": "https://www.princehotels.co.jp/ski/myoko/winter/",
+    "transport": "北陸新幹線 → 上越妙高 → 鐵路／巴士 → 妙高高原 → 雪場",
+    "official_links": [{"label":"妙高杉之原 官方","url":"https://www.princehotels.co.jp/ski/myoko/winter/"}]
+  },
+  "zao-onsen": {
+    "size": "14 個ゲレンデ・12 courses・最長約 10km",
+    "ticket_text": "官方最新票價",
+    "ticket_url": "https://zaomountainresort.com/ski/",
+    "transport": "新幹線 → 山形 → 巴士 → 藏王溫泉 → 徒步／接駁",
+    "official_links": [{"label":"藏王溫泉雪場 官方","url":"https://zaomountainresort.com/ski/"}]
+  },
+  "nozawa-jan": {
+    "size": "大型單一雪場・最長滑走約 10km",
+    "ticket_text": "官方最新票價",
+    "ticket_url": "https://nozawaski.com/",
+    "transport": "新幹線 → 飯山 → 巴士 → 野澤溫泉 → 徒步／接駁",
+    "official_links": [{"label":"野澤溫泉雪場 官方","url":"https://nozawaski.com/"}]
+  },
+  "appi-jan": {
+    "size": "21 courses・總滑走距離 43.1km",
+    "ticket_text": "官方最新票價",
+    "ticket_url": "https://www.appi.co.jp/snow-mountain-resort/ticket/",
+    "transport": "新幹線 → 盛岡 → JR／巴士 → 安比高原",
+    "official_links": [{"label":"安比高原 官方","url":"https://www.appi.co.jp/snow-mountain-resort/"}]
+  },
+  "rusutsu": {
+    "size": "3 山大型度假雪場・約 42km 級",
+    "ticket_text": "官方最新票價",
+    "ticket_url": "https://rusutsu.com/",
+    "transport": "新千歲／札幌 → Resort Bus → Rusutsu",
+    "official_links": [{"label":"Rusutsu Resort 官方","url":"https://rusutsu.com/"}]
+  },
+  "hachi-kogen": {
+    "size": "Hachi＋Hachi Kita 跨山滑雪區",
+    "ticket_text": "官方最新票價",
+    "ticket_url": "https://www.hachi-hachikita.co.jp/",
+    "transport": "JR → 八鹿 → 巴士 → Hachi／Hachi Kita",
+    "official_links": [{"label":"Hachi / Hachi Kita 官方","url":"https://www.hachi-hachikita.co.jp/"}]
+  },
+  "madarao-jan": {
+    "size": "斑尾本體 51 courses；可與 Tangram 跨區",
+    "ticket_text": "官方最新票價",
+    "ticket_url": "https://www.madarao.jp/ski",
+    "transport": "新幹線 → 飯山 → 巴士 → 斑尾高原",
+    "official_links": [{"label":"斑尾高原 官方","url":"https://www.madarao.jp/ski"}]
+  },
+  "echigo-yuzawa-jan": {
+    "size": "YUZAWA SNOW LINK：湯澤高原＋GALA＋石打丸山，48 courses 級",
+    "ticket_text": "三山共通券｜官方最新價",
+    "ticket_url": "https://www.yuzawasnowlink.com/",
+    "transport": "新幹線 → 越後湯澤 → 徒步／免費接駁 → 各雪場",
+    "official_links": [{"label":"YUZAWA SNOW LINK 官方","url":"https://www.yuzawasnowlink.com/"}]
+  },
+  "furano": {
+    "size": "194ha・28 courses・總滑走 24.3km",
+    "ticket_text": "官方最新票價",
+    "ticket_url": "https://www.princehotels.co.jp/ski/furano/winter/",
+    "transport": "新千歲／旭川 → JR／巴士 → 富良野 → 接駁",
+    "official_links": [{"label":"富良野雪場 官方","url":"https://www.princehotels.co.jp/ski/furano/winter/"}]
+  },
+  "kagura-naeba": {
+    "size": "神樂 166ha・30 courses；與苗場構成 Mt. Naeba",
+    "ticket_text": "神樂／苗場票價依區域｜查看官方",
+    "ticket_url": "https://www.princehotels.co.jp/ski/kagura/winter/",
+    "transport": "新幹線 → 越後湯澤 → 路線巴士 → 神樂／苗場",
+    "official_links": [
+      {"label":"神樂 官方","url":"https://www.princehotels.co.jp/ski/kagura/winter/"},
+      {"label":"苗場 官方","url":"https://www.princehotels.co.jp/ski/naeba/winter/"}
+    ]
+  },
+  "kiroro": {
+    "size": "24 trails・10 lifts 級",
+    "ticket_text": "官方最新票價",
+    "ticket_url": "https://www.kiroro.co.jp/ja/snowworld/",
+    "transport": "新千歲／札幌 → 巴士／JR → 小樽・Kiroro",
+    "official_links": [{"label":"Kiroro Snow World 官方","url":"https://www.kiroro.co.jp/ja/snowworld/"}]
+  },
+  "maiko": {
+    "size": "26 courses・最長約 6km",
+    "ticket_text": "官方最新票價",
+    "ticket_url": "https://www.maiko-resort.com/winter/",
+    "transport": "新幹線 → 越後湯澤 → 免費 Shuttle → 舞子",
+    "official_links": [{"label":"舞子 Snow Resort 官方","url":"https://www.maiko-resort.com/winter/"}]
+  },
+  "washigatake-whitepia": {
+    "size": "Takasu Mountains 旗下跨雪場區；鷲岳＋White Pia",
+    "ticket_text": "共通／各場票價｜官方最新價",
+    "ticket_url": "https://www.takasumountains.com/",
+    "transport": "名古屋 → 高速巴士／車 → 高鷲 IC → 雪場",
+    "official_links": [{"label":"Takasu Mountains 官方","url":"https://www.takasumountains.com/"}]
+  },
+  "sahoro": {
+    "size": "北海道大型山岳度假雪場",
+    "ticket_text": "官方最新票價",
+    "ticket_url": "https://sahoro-resort.com/winter/ski",
+    "transport": "新千歲／帶廣 → JR 新得 → 免費接駁 → Sahoro",
+    "official_links": [{"label":"Sahoro Resort 官方","url":"https://sahoro-resort.com/winter/ski"}]
+  },
+  "togakushi": {
+    "size": "19 courses",
+    "ticket_text": "官方最新票價",
+    "ticket_url": "https://www.togakusi.com/ski/",
+    "transport": "新幹線 → 長野 → 巴士 → 戶隱 → 雪場",
+    "official_links": [{"label":"戶隱雪場 官方","url":"https://www.togakusi.com/ski/"}]
+  },
+  "teine-jan": {
+    "size": "15 courses・札幌近郊最大規模",
+    "ticket_text": "官方最新票價",
+    "ticket_url": "https://sapporo-teine.com/snow/",
+    "transport": "札幌 → JR 手稻 → 巴士 → Sapporo Teine",
+    "official_links": [{"label":"Sapporo Teine 官方","url":"https://sapporo-teine.com/snow/"}]
+  },
+  "ontake": {
+    "size": "高海拔雪場・最長約 7km",
+    "ticket_text": "官方最新票價",
+    "ticket_url": "https://ontakeskijo.com/",
+    "transport": "特急／JR → 木曾福島 → 車／Taxi → 王瀧 → 御嶽",
+    "official_links": [{"label":"御嶽雪場 官方","url":"https://ontakeskijo.com/"}]
+  },
+  "tengendai": {
+    "size": "Ropeway＋3 lifts・長雪季高海拔區",
+    "ticket_text": "官方最新票價",
+    "ticket_url": "https://www.winter.tengendai.jp/",
+    "transport": "新幹線 → 米澤 → 巴士 → 白布溫泉 → Ropeway",
+    "official_links": [{"label":"天元台高原 官方","url":"https://www.winter.tengendai.jp/"}]
+  },
+  "joetsu-kokusai": {
+    "size": "22 courses・最長 6km・4 大區域",
+    "ticket_text": "官方最新票價",
+    "ticket_url": "https://jkokusai.co.jp/ski/lift/",
+    "transport": "新幹線 → 越後湯澤／浦佐 → JR → 上越國際滑雪場前",
+    "official_links": [{"label":"上越國際 官方","url":"https://jkokusai.co.jp/ski/"}]
+  },
+  "ryuoo": {
+    "size": "最長約 6km・標高差 1,000m 級",
+    "ticket_text": "官方最新票價",
+    "ticket_url": "https://ryuoo.com/winter/",
+    "transport": "新幹線 → 飯山 → Shuttle／巴士 → 竜王",
+    "official_links": [{"label":"竜王 Ski Park 官方","url":"https://ryuoo.com/winter/"}]
+  },
+  "sugadaira": {
+    "size": "175ha・60 courses",
+    "ticket_text": "官方最新票價",
+    "ticket_url": "https://sugadaira-snowresort.com/ticket/",
+    "transport": "新幹線 → 上田 → 巴士 → 菅平高原 → 區內巴士",
+    "official_links": [{"label":"菅平高原 官方","url":"https://sugadaira-snowresort.com/"}]
+  },
+  "nekoma-mountain": {
+    "size": "189ha・33 courses・13 lifts",
+    "ticket_text": "官方最新票價",
+    "ticket_url": "https://www.nekoma.co.jp/",
+    "transport": "新幹線 → 郡山 → 巴士 → 南區；或會津若松 → 巴士 → 北區",
+    "official_links": [{"label":"Nekoma Mountain 官方","url":"https://www.nekoma.co.jp/"}]
+  },
+  "tomamu": {
+    "size": "123ha・29 courses・總滑走 21.5km",
+    "ticket_text": "官方最新票價",
+    "ticket_url": "https://www.snowtomamu.jp/winter/ski/",
+    "transport": "新千歲 → JR Tomamu → 接駁 → Resort",
+    "official_links": [{"label":"Hoshino Resorts TOMAMU 官方","url":"https://www.snowtomamu.jp/winter/ski/"}]
+  },
+  "lotte-arai": {
+    "size": "14 courses・大型非壓雪地形",
+    "ticket_text": "官方最新票價",
+    "ticket_url": "https://www.lottehotel.com/arai-resort/ja",
+    "transport": "北陸新幹線 → 上越妙高 → Shuttle／車 → ARAI",
+    "official_links": [{"label":"LOTTE ARAI RESORT 官方","url":"https://www.lottehotel.com/arai-resort/ja"}]
+  },
+  "kurodake": {
+    "size": "Ropeway＋Lift 的高山滑雪區",
+    "ticket_text": "Ropeway／Lift 官方最新價",
+    "ticket_url": "https://www.rinyu.co.jp/kurodake/",
+    "transport": "旭川 → JR 上川 → 巴士 → 層雲峽 → Ropeway",
+    "official_links": [{"label":"黑岳 Ropeway 官方","url":"https://www.rinyu.co.jp/kurodake/"}]
+  },
+  "chausuyama": {
+    "size": "小型區域雪場・主雪道約 1km",
+    "ticket_text": "官方最新票價",
+    "ticket_url": "https://www.chausuyama.jp/",
+    "transport": "名古屋／豐橋 → 車為主 → 茶臼山高原",
+    "official_links": [{"label":"茶臼山高原 官方","url":"https://www.chausuyama.jp/"}]
+  },
+  "okutadami": {
+    "size": "早滑＋春滑特色雪場；冬季中段有休業期",
+    "ticket_text": "官方最新票價",
+    "ticket_url": "https://www.okutadami.co.jp/ski/price.html",
+    "transport": "新幹線 → 浦佐 → JR／車 → 魚沼 → 預約 Shuttle／車 → 奧只見",
+    "official_links": [{"label":"奧只見丸山 官方","url":"https://www.okutadami.co.jp/ski/"}]
+  },
+  "marunuma": {
+    "size": "標高 2,000m 級・多樣山岳 courses",
+    "ticket_text": "官方最新票價",
+    "ticket_url": "https://www.marunuma.jp/winter/",
+    "transport": "東京 → JR 沼田 → 巴士 → 鎌田／丸沼高原",
+    "official_links": [{"label":"丸沼高原 官方","url":"https://www.marunuma.jp/winter/"}]
+  },
+  "biwako-valley": {
+    "size": "都市近郊型中型雪場・Ropeway 上山",
+    "ticket_text": "官方最新票價",
+    "ticket_url": "https://www.biwako-valley.com/winter/",
+    "transport": "京都 → JR 志賀 → 巴士 → Ropeway → 雪場",
+    "official_links": [{"label":"Biwako Valley 官方","url":"https://www.biwako-valley.com/winter/"}]
+  },
+  "okuibuki": {
+    "size": "關西大型雪場",
+    "ticket_text": "官方最新票價",
+    "ticket_url": "https://www.okuibuki.co.jp/",
+    "transport": "新幹線／JR → 米原 → Shuttle／車 → Grand Snow 奧伊吹",
+    "official_links": [{"label":"Grand Snow 奧伊吹 官方","url":"https://www.okuibuki.co.jp/"}]
+  },
+  "hakkoda": {
+    "size": "Ropeway 山岳／Backcountry 型大地形",
+    "ticket_text": "Ropeway 官方最新價",
+    "ticket_url": "https://hakkoda-ropeway.jp/",
+    "transport": "新幹線 → 新青森／青森 → 巴士 → 八甲田 Ropeway",
+    "official_links": [{"label":"八甲田 Ropeway 官方","url":"https://hakkoda-ropeway.jp/"}]
+  },
+  "kijimadaira": {
+    "size": "木島平大型區域雪場",
+    "ticket_text": "官方最新票價",
+    "ticket_url": "https://kijimadaira-ski.com/",
+    "transport": "新幹線 → 飯山 → Shuttle／巴士 → 木島平",
+    "official_links": [{"label":"Snow Resort ロマンスの神様 官方","url":"https://kijimadaira-ski.com/"}]
+  },
+  "iwappara": {
+    "size": "130ha 級・寬闊緩坡為主",
+    "ticket_text": "官方最新票價",
+    "ticket_url": "https://iwa-ppara.com/",
+    "transport": "新幹線 → 越後湯澤 → Shuttle／JR 岩原滑雪場前 → 雪場",
+    "official_links": [{"label":"岩原雪場 官方","url":"https://iwa-ppara.com/"}]
+  },
+  "kandatsu": {
+    "size": "越後湯澤近郊中大型雪場",
+    "ticket_text": "官方最新票價",
+    "ticket_url": "https://www.kandatsu.com/",
+    "transport": "新幹線 → 越後湯澤 → 免費 Shuttle 約 7 分 → 神立",
+    "official_links": [{"label":"神立 Snow Resort 官方","url":"https://www.kandatsu.com/"}]
+  },
+  "kamui-ski-links": {
+    "size": "165ha 級北海道內陸雪場",
+    "ticket_text": "官方最新票價",
+    "ticket_url": "https://www.kamui-skilinks.com/",
+    "transport": "旭川 → 車／巴士 → Kamui Ski Links",
+    "official_links": [{"label":"Kamui Ski Links 官方","url":"https://www.kamui-skilinks.com/"}]
+  },
+  "tateyama-sanroku": {
+    "size": "140ha 級山麓滑雪區",
+    "ticket_text": "官方最新票價",
+    "ticket_url": "https://www.tateyama36.co.jp/",
+    "transport": "北陸新幹線 → 富山 → 富山地鐵 → 立山／山麓 → Shuttle",
+    "official_links": [{"label":"立山山麓 官方","url":"https://www.tateyama36.co.jp/"}]
+  },
+  "togari-onsen": {
+    "size": "135ha 級溫泉雪場",
+    "ticket_text": "官方最新票價",
+    "ticket_url": "https://togari.jp/winter/",
+    "transport": "新幹線 → 飯山 → JR 戶狩野澤溫泉 → Shuttle／Taxi",
+    "official_links": [{"label":"戶狩溫泉雪場 官方","url":"https://togari.jp/winter/"}]
+  },
+  "mount-racey": {
+    "size": "134ha 級；2025–26 部分設備有運休",
+    "ticket_text": "官方最新票價",
+    "ticket_url": "https://yubari-resort.co.jp/",
+    "transport": "新千歲／札幌 → JR／巴士／車 → 夕張 → 雪場",
+    "official_links": [{"label":"Yubari Resort / Mount Racey 官方","url":"https://yubari-resort.co.jp/"}]
+  },
+  "shizukuishi": {
+    "size": "86ha・20 courses・總滑走 15.7km",
+    "ticket_text": "官方最新票價",
+    "ticket_url": "https://www.princehotels.co.jp/ski/shizukuishi/winter/",
+    "transport": "新幹線 → 盛岡 → 巴士／車 → 雫石",
+    "official_links": [{"label":"雫石雪場 官方","url":"https://www.princehotels.co.jp/ski/shizukuishi/winter/"}]
+  }
+}
