@@ -25,13 +25,15 @@
       const used = Number(account?.this_month_usage);
       const total = Number(account?.searches_per_month);
       const monitored = Number(status?.estimated_monitored_refresh_cost ?? status?.automatic_searches_per_run ?? 0);
+      const monthAuto = Number(status?.estimated_monthly_automatic_max ?? monitored * 31);
       const full = Number(status?.estimated_full_catalog_refresh_cost ?? status?.catalog_count ?? 0);
 
       host.textContent = Number.isFinite(left) ? `SerpApi ${left} left` : 'SerpApi quota';
       const parts = [];
       if (Number.isFinite(used) && Number.isFinite(total)) parts.push(`本月 ${used} / ${total}`);
       if (Number.isFinite(left)) parts.push(`剩 ${left}`);
-      if (Number.isFinite(monitored)) parts.push(`監控刷新最多 ${monitored}`);
+      if (Number.isFinite(monitored)) parts.push(`每日監控最多 ${monitored}`);
+      if (Number.isFinite(monthAuto)) parts.push(`31 天監控最多 ${monthAuto}`);
       if (Number.isFinite(full)) parts.push(`全 catalog 最多 ${full}`);
       host.title = parts.join(' · ');
       host.classList.remove('quota-error');
@@ -44,4 +46,5 @@
 
   updateQuotaStatus();
   setInterval(updateQuotaStatus, 300000);
+  window.addEventListener('snow-monitors-updated', updateQuotaStatus);
 })();
