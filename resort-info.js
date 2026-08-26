@@ -1,6 +1,7 @@
 (() => {
   const PROFILE_URL = `config/resort-profiles.json?v=${Date.now()}`;
   const TAG_URL = `config/ranking-tags-by-id.json?v=${Date.now()}`;
+  const TRAIL_MAP_URL = `config/trail-map-links.json?v=${Date.now()}`;
   const TAG_LABELS = {
     longest_run: '最長雪道',
     popularity: '人氣 Top 20',
@@ -11,6 +12,7 @@
 
   let profiles = {};
   let tagOverlay = {};
+  let trailMaps = {};
   let mode = 'booking';
   let infoMap = null;
   let infoMarker = null;
@@ -115,7 +117,16 @@
     return null;
   }
 
-  async function renderProfileMap(watch) {
+  function mapZoomFor(watch) {
+    const configured = Number(trailMaps?.[watch?.id]?.zoom);
+    if (Number.isFinite(configured)) return configured;
+    const coverCount = Array.isArray(watch?.covers) ? watch.covers.length : 1;
+    if (coverCount >= 5) return 11;
+    if (coverCount >= 3) return 12;
+    return 13;
+  }
+
+  async function renderTrailMap(watch) {
     const host = document.querySelector('#resortInfoMap');
     if (!host || mode !== 'resort' || !watch) return;
     const query = watch.center_query || watch.query || watch.name;
@@ -125,8 +136,8 @@
     if (!coords || typeof L === 'undefined') {
       host.innerHTML = `
         <div class="resort-map-fallback">
-          <strong>地圖座標尚未取得</strong>
-          <a href="${escapeHtml(googleMapsUrl(query))}" target="_blank" rel="noopener">Google Maps 開啟</a>
+          <strong>雪道圖座標尚未取得</strong>
+          <a href="${escapeHtml(googleMapsUrl(query))}" target="_blank" rel="noopener">Google Maps 開啟位置</a>
         </div>`;
       return;
     }
@@ -137,13 +148,29 @@
       infoMarker = null;
     }
     host.innerHTML = '';
-    infoMap = L.map(host, { scrollWheelZoom: false, zoomControl: true }).setView([coords.latitude, coords.longitude], 11);
+    infoMap = L.map(host, { scrollWheelZoom: false, zoomControl: true }).setView(
+      [coords.latitude, coords.longitude],
+      mapZoomFor(watch),
+    );
+
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
+      opacity: 0.62,
       attribution: '&copy; OpenStreetMap contributors',
     }).addTo(infoMap);
-    infoMarker = L.marker([coords.latitude, coords.longitude]).addTo(infoMap);
-    infoMarker.bindPopup(escapeHtml(watch.name || '雪場')).openPopup();
+
+    L.tileLayer('https://tiles.opensnowmap.org/pistes/{z}/{x}/{y}.png', {
+      maxZoom: 18,
+      opacity: 0.92,
+      attribution: 'Ski pistes &copy; OpenSnowMap / OpenStreetMap contributors',
+    }).addTo(infoMap);
+
+    infoMarker = L.circleMarker([coords.latitude, coords.longitude], {
+      radius: 5,
+      weight: 2,
+      fillOpacity: 0.8,
+    }).addTo(infoMap);
+    infoMarker.bindPopup(escapeHtml(watch.name || '雪場'));
     setTimeout(() => infoMap?.invalidateSize(), 20);
   }
 
@@ -169,6 +196,7 @@
     }
 
     const profile = profiles[watch.id] || {};
+    const trailMap = trailMaps[watch.id] || {};
     const tags = tagsFor(watch);
     const query = watch.center_query || watch.query || watch.name;
     const officialLinks = Array.isArray(profile.official_links) ? profile.official_links : [];
@@ -183,6 +211,7 @@
         </div>
         <div class="resort-info-actions">
           <button id="resortInfoSearchStays" class="resort-info-search-cta" type="button">用目前條件找住宿</button>
+          ${trailMap.url ? `<a href="${escapeHtml(trailMap.url)}" target="_blank" rel="noopener">官方雪道圖</a>` : ''}
           ${officialLinks.map((link) => `<a href="${escapeHtml(link.url)}" target="_blank" rel="noopener">${escapeHtml(link.label || '官方網站')}</a>`).join('')}
           <a href="${escapeHtml(googleMapsUrl(query))}" target="_blank" rel="noopener">Google Maps</a>
         </div>
@@ -190,7 +219,14 @@
 
       <div class="resort-info-layout">
         <div class="resort-info-map-wrap">
-          <div id="resortInfoMap" class="resort-info-map"><span>地圖載入中…</span></div>
+          <div class="resort-info-map-toolbar">
+            <div>
+              <strong>雪道圖</strong>
+              <span>雪道與纜車互動圖 · OpenSnowMap</span>
+            </div>
+            ${trailMap.url ? `<a href="${escapeHtml(trailMap.url)}" target="_blank" rel="noopener">${escapeHtml(trailMap.label || '官方 Trail Map')} ↗</a>` : ''}
+          </div>
+          <div id="resortInfoMap" class="resort-info-map"><span>雪道圖載入中…</span></div>
         </div>
 
         <div class="resort-info-facts">
@@ -220,17 +256,23 @@
       </div>
     `;
     document.querySelector('#resortInfoSearchStays')?.addEventListener('click', searchCurrentConditions);
-    renderProfileMap(watch);
+    renderTrailMap(watch);
   }
 
   async function loadProfileData() {
     try {
-      const [profileResponse, tagResponse] = await Promise.all([fetch(PROFILE_URL), fetch(TAG_URL)]);
+      const [profileResponse, tagResponse, trailMapResponse] = await Promise.all([
+        fetch(PROFILE_URL),
+        fetch(TAG_URL),
+        fetch(TRAIL_MAP_URL),
+      ]);
       if (profileResponse.ok) profiles = await profileResponse.json();
       if (tagResponse.ok) tagOverlay = await tagResponse.json();
+      if (trailMapResponse.ok) trailMaps = await trailMapResponse.json();
     } catch {
       profiles = profiles || {};
       tagOverlay = tagOverlay || {};
+      trailMaps = trailMaps || {};
     }
     if (state?.data) {
       ensureShell();
