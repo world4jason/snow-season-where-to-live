@@ -1,6 +1,6 @@
 # Cloudflare Worker backend
 
-This is the live backend for the GitHub Pages frontend. GitHub Actions is not used.
+This is the live backend for the GitHub Pages frontend. GitHub Actions is not used for hotel checks.
 
 ## Production Worker
 
@@ -10,38 +10,32 @@ https://snow-season-where-to-live-api.world4jason.workers.dev
 
 ## Deploy / update
 
-From the repository:
+The Browser Run POC adds an npm dependency, so after pulling a version that changes `package.json` run `npm install` before deploy:
 
 ```bash
 git pull --ff-only
 cd cloudflare
+npm install
 npx wrangler deploy
+node provider-unit-test.mjs
+node smoke-test.mjs
 ```
 
-## SerpApi secrets
+`wrangler.jsonc` now includes a Cloudflare Browser Run binding named `BROWSER` and uses `worker-browser-poc.js` as the entrypoint. Normal `/api/search` remains SerpApi-backed during this POC.
 
-The existing single-key setup continues to work:
+## Secrets
+
+Single SerpApi key:
 
 ```bash
 npx wrangler secret put SERPAPI_KEY
 ```
 
-Optional multi-key pool:
+Optional legitimate multi-key pool:
 
 ```bash
 npx wrangler secret put SERPAPI_KEYS_JSON
 ```
-
-Value example:
-
-```json
-[
-  {"name":"primary","key":"..."},
-  {"name":"backup","key":"..."}
-]
-```
-
-The Worker checks pool health/quota, round-robins available keys, and fails over when a key is unavailable/exhausted. Key values are never returned to the browser. Multiple keys from one SerpApi account/team still share that account's search quota.
 
 Admin secret:
 
@@ -49,41 +43,160 @@ Admin secret:
 npx wrangler secret put ADMIN_TOKEN
 ```
 
-The KV namespace and public live-search rate limiter are configured in `wrangler.jsonc`.
+The KV namespace, Browser Run binding, and public live-search rate limiter are configured in `wrangler.jsonc`.
+
+## Google Maps Browser Run provider POC
+
+This change follows the OpenSpec plan in:
+
+```text
+openspec/changes/add-google-maps-browser-provider/
+```
+
+The POC uses `@cloudflare/playwright` to open an exact Google Maps hotel-search URL, verify the encoded/loaded dates, adult count and nightly-price ceiling, extract priced hotel listings, and normalize them to the existing `properties[]` schema.
+
+### Rollout state
+
+Current mode is **shadow**:
+
+- normal `/api/search` → SerpApi, unchanged
+- daily monitor → existing monitor flow, unchanged
+- Browser Run → admin-only test endpoint
+- Browser vs SerpApi parity → admin-only comparison endpoint
+
+Browser Run will not become the primary provider until the OpenSpec parity gate passes.
+
+### Browser-only POC endpoint
+
+`POST /api/providers/google-maps-browser/search`
+
+Requires `ADMIN_TOKEN`.
+
+Example:
+
+```bash
+curl -X POST \
+  -H "Authorization: Bearer <ADMIN_TOKEN>" \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "resort_id": "nozawa-jan",
+    "google_maps_url": "<Google Maps hotel-search URL>",
+    "check_in": "2027-01-15",
+    "check_out": "2027-01-18",
+    "adults": 2,
+    "rooms": 1,
+    "currency": "TWD",
+    "max_price_per_night": 8800,
+    "max_results": 20
+  }' \
+  https://snow-season-where-to-live-api.world4jason.workers.dev/api/providers/google-maps-browser/search
+```
+
+Typed browser statuses include:
+
+- `success`
+- `valid_zero`
+- `unsupported_input`
+- `query_state_mismatch`
+- `query_state_unverified`
+- `bot_blocked`
+- `interstitial_blocked`
+- `timeout`
+- `extraction_contract_error`
+- `navigation_error`
+
+A missing result DOM is **not** treated as a successful zero-result search.
+
+### Provider comparison endpoint
+
+`POST /api/providers/compare`
+
+Requires `ADMIN_TOKEN`. It runs the Browser Run provider and the current SerpApi provider for the same one-room query and reports:
+
+- result counts
+- top-10 normalized hotel-name overlap
+- matched hotel pairs
+- price deltas
+- lowest prices
+- parity gate result
+- Browser Run elapsed time/diagnostics
+
+This endpoint may consume a SerpApi search when the identical SerpApi query is not already cached.
+
+### Rooms scope
+
+Parity v1 supports exactly:
+
+```text
+rooms = 1
+```
+
+`rooms>1` is rejected as unsupported. Current SerpApi Google Hotels documentation does not expose a hotel room-count query parameter, so the POC does not fake multi-room behavior by changing guest count.
+
+### Browser Run resource safety
+
+The POC is admin-only and is not wired into Cron. It has an application deadline below Cloudflare's browser timeout and closes browser resources in `finally`. It detects CAPTCHA/unusual-traffic surfaces but does not implement CAPTCHA solving, stealth plugins, or proxy-evasion behavior.
+
+## Optional live Browser Run smoke test
+
+Default smoke testing does **not** spend Browser Run time because the browser endpoints require admin auth and are skipped.
+
+To run the Browser Run POC intentionally:
+
+```bash
+SMOKE_ADMIN_TOKEN='<ADMIN_TOKEN>' node smoke-test.mjs
+```
+
+This uses the Nozawa Google Maps fixture and does not intentionally call SerpApi through the comparison endpoint.
+
+To additionally compare Browser Run against SerpApi:
+
+```bash
+SMOKE_ADMIN_TOKEN='<ADMIN_TOKEN>' \
+SMOKE_PROVIDER_COMPARE=1 \
+node smoke-test.mjs
+```
+
+That comparison may consume one SerpApi search when its upstream cache is cold.
+
+You can override the Maps fixture:
+
+```bash
+SMOKE_BROWSER_URL='<google maps hotel URL>' \
+SMOKE_ADMIN_TOKEN='<ADMIN_TOKEN>' \
+node smoke-test.mjs
+```
 
 ## Search vs forced refresh
 
 - **搜尋** — uses the app's 6-hour KV cache first. If it reaches SerpApi, SerpApi's own default one-hour cache remains allowed.
-- **強制刷新** — only allowed for one lodging base at a time. It bypasses the app cache and sends `no_cache=true` to SerpApi, intentionally requesting fresh Google Hotels data.
+- **強制刷新** — only allowed for one lodging base at a time. It bypasses the app cache and sends `no_cache=true` to SerpApi.
 
-A searched zero-result response means **zero properties within the nightly budget**, not "the destination has no rooms". The enhanced Worker exposes a lodging-area Google Maps reference and, after a normal fresh search, can reuse the identical SerpApi query to read `non_matching_properties` as over-budget references.
+A searched zero-result response means **zero properties within the nightly budget**, not "the destination has no rooms".
 
 ## Production verification
 
-After every Worker deployment run:
+Default verification:
 
 ```bash
+node provider-unit-test.mjs
 node smoke-test.mjs
 ```
 
-The default smoke test verifies:
+The default smoke test verifies existing production behavior plus:
 
-- health and safe SerpApi pool status
-- **48 raw ranking-union bases / 46 active winter bases**
-- Senjojiki and Okutadami exclusion enforcement
-- five-base automatic monitoring
-- cost metadata: monitored refresh = 5, full active catalog estimate = 46
-- strict date validation and forced-refresh quota protection
-- one normal Sugadaira search
-- per-night budget enforcement, result schema, coordinates, and Google Maps references
+- Browser provider reports shadow mode
+- Browser Run is not used for normal search
+- parity v1 exposes `rooms=1`
+- browser-only and comparison endpoints require `ADMIN_TOKEN`
 
-It deliberately skips a real forced refresh by default. To test that path intentionally:
+It deliberately skips a real forced SerpApi refresh by default. To test that path intentionally:
 
 ```bash
 SMOKE_FORCE_REFRESH=1 node smoke-test.mjs
 ```
 
-## Endpoints
+## Main endpoints
 
 ### `GET /health`
 
@@ -91,95 +204,45 @@ Basic Worker health check.
 
 ### `GET /api/latest`
 
-Returns the most recent daily cached result from KV. It contains only the five `auto_monitor` lodging bases.
+Returns the most recent configured monitor result from KV.
 
 ### `POST /api/search`
 
-Public search/refresh endpoint used by the GitHub Pages search bar.
-
-Example:
-
-```bash
-curl -X POST \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "resort_ids": ["sugadaira"],
-    "check_in": "2027-01-15",
-    "check_out": "2027-01-18",
-    "adults": 2,
-    "max_price_per_night": 6000,
-    "force_refresh": false
-  }' \
-  https://snow-season-where-to-live-api.world4jason.workers.dev/api/search
-```
-
-For quota safety, forced refresh accepts exactly one lodging base per request. `resort_ids: "all"` means the five `auto_monitor` bases for normal search, not every catalog entry. Requests for IDs listed in `config/excluded-resorts.json` are rejected by the public API.
-
-Validation:
-
-- stay: 1–14 valid calendar nights
-- adults: 1–6
-- nightly budget: TWD 500–30,000
-
-Protection:
-
-- same lodging base + dates + adults + budget is cached in KV for 6 hours
-- daily refresh seeds the same cache for default query conditions
-- public cache-miss/forced SerpApi calls are conservatively capped at 80/month by the app
-- Worker Rate Limiting binding protects rapid repeated calls
-- forced refresh is limited to one lodging base at a time
+Public search/refresh endpoint used by the GitHub Pages search bar. During the Browser Run POC this remains SerpApi-backed.
 
 ### `GET /api/status`
 
-Returns backend/quota information without exposing API key values. It includes:
+Returns backend/quota information without exposing API key values and now includes `browser_provider` shadow-mode metadata.
 
-- raw catalog count and active winter catalog count
-- excluded resort IDs
-- automatic-monitoring count
-- estimated monitored-refresh cost
-- estimated all-active-catalog refresh cost
-- manual search budget
-- safe per-key SerpApi health/remaining-quota metadata
-- whether multiple configured keys appear to share one SerpApi account quota
+### `GET /api/monitor-summary`
+
+Returns safe configured-monitor summary data.
+
+### `GET|PUT /api/monitors`
+
+Admin-only monitor configuration stored in KV.
 
 ### `POST /api/refresh`
 
-Protected scheduled-style refresh for the five configured `auto_monitor` lodging bases:
-
-```bash
-curl -X POST \
-  -H "Authorization: Bearer <ADMIN_TOKEN>" \
-  https://snow-season-where-to-live-api.world4jason.workers.dev/api/refresh
-```
-
-It does **not** query all 46 active lodging bases. At current configuration it deliberately issues at most five hotel searches per run.
+Admin-only configured-monitor refresh.
 
 ## Schedule
-
-`wrangler.jsonc` contains:
 
 ```text
 20 0 * * *
 ```
 
-Cloudflare Cron runs in UTC, so this is **08:20 Taiwan time**.
+Cloudflare Cron uses UTC, so this is **08:20 Taiwan time**.
 
 ## KV keys
 
-- `latest` — most recent daily five-base automatic-monitoring result.
-- `geo:v2:<watch-id>:<center-query>` — cached resort/search-center geocode.
+- `latest` — most recent configured-monitor result.
+- `monitor-config:v1` — monitor configuration.
+- `geo:v2:<watch-id>:<center-query>` — cached reference-center geocode.
 - `manual:<watch-id>:<check-in>:<check-out>:<adults>:<budget>` — 6-hour live-search cache.
 - `manual-serp-usage:<YYYY-MM>` — conservative public live-search/forced-refresh counter.
 - `serpapi-pool-status:v1` — short-lived safe account/quota status cache.
 - `serpapi-key-cursor:v1` — round-robin cursor; contains no API key.
-
-## Catalog sources
-
-- `config/watches.json` — primary lodging bases, including Hakuba/Shiga special handling and five daily monitors.
-- `config/extra-watches.json` — additional lodging bases from the union of ranking/discovery lists.
-- `config/excluded-resorts.json` — special-season destinations excluded from the active winter catalog.
-- `config/rankings.json` — normalized ranking definitions, sources, and caveats.
-- `config/ranking-tags-by-id.json` — ranking-label overlays for core lodging bases.
 
 ## Frontend connection
 
