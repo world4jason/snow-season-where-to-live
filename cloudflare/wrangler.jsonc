@@ -1,8 +1,11 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "snow-season-where-to-live-api",
-  "main": "worker-monitor.js",
+  "main": "worker-browser-poc.js",
   "compatibility_date": "2026-08-25",
+  "browser": {
+    "binding": "BROWSER"
+  },
   "triggers": {
     "crons": ["20 0 * * *"]
   },
