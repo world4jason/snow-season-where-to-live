@@ -1,0 +1,22 @@
+{
+  "shiga-central": ["representative_scale", "course_area_current"],
+  "shiga-east": ["representative_scale", "course_area_current", "popularity"],
+  "shiga-west": ["representative_scale", "course_area_current"],
+  "shiga-south": ["representative_scale", "course_area_current", "popularity"],
+  "hakuba-village": ["representative_scale", "longest_run", "popularity", "course_area_current"],
+  "hakuba-otari": ["representative_scale", "course_area_current"],
+  "hakuba-omachi": ["representative_scale"],
+  "niseko-united": ["representative_scale", "course_area_current"],
+  "myoko-kogen": ["representative_scale", "longest_run"],
+  "zao-onsen": ["representative_scale", "longest_run", "popularity", "course_area_current"],
+  "nozawa-jan": ["representative_scale", "longest_run", "popularity", "course_area_current"],
+  "appi-jan": ["representative_scale", "course_area_current"],
+  "rusutsu": ["representative_scale", "course_area_current"],
+  "hachi-kogen": ["popularity"],
+  "madarao-jan": ["representative_scale"],
+  "echigo-yuzawa-jan": ["representative_scale", "longest_run"],
+  "furano": ["representative_scale", "popularity", "course_area_current"],
+  "kagura-naeba": ["representative_scale", "longest_run", "popularity", "course_area_current"],
+  "maiko": ["representative_scale", "longest_run"],
+  "teine-jan": ["longest_run"]
+}
