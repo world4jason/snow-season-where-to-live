@@ -142,13 +142,23 @@ async function loadWatches() {
   return watches;
 }
 
+function monitoredWatches(watches) {
+  return watches.filter((watch) => watch.auto_monitor === true);
+}
+
+function geocodeKey(watch) {
+  const centerQuery = String(watch.center_query || watch.query || '').trim();
+  return `geo:v2:${watch.id}:${encodeURIComponent(centerQuery)}`;
+}
+
 async function geocode(env, watch, shouldDelay = false) {
-  const key = `geo:${watch.id}`;
+  const key = geocodeKey(watch);
   const cached = await env.CACHE.get(key, 'json');
   if (cached?.latitude != null && cached?.longitude != null) return cached;
 
   if (shouldDelay) await sleep(1100);
-  const params = new URLSearchParams({ q: watch.query, format: 'jsonv2', limit: '1' });
+  const query = watch.center_query || watch.query;
+  const params = new URLSearchParams({ q: query, format: 'jsonv2', limit: '1' });
   const response = await fetch(`https://nominatim.openstreetmap.org/search?${params}`, {
     headers: {
       Accept: 'application/json',
@@ -164,7 +174,7 @@ async function geocode(env, watch, shouldDelay = false) {
   const center = {
     latitude: Number(first.lat),
     longitude: Number(first.lon),
-    display_name: first.display_name || watch.query,
+    display_name: first.display_name || query,
     source: 'OpenStreetMap Nominatim',
   };
   await env.CACHE.put(key, JSON.stringify(center));
@@ -201,7 +211,8 @@ async function buildWatchResult(env, watch, shouldDelayGeocode = false) {
   let error = null;
 
   try {
-    const cachedCenter = await env.CACHE.get(`geo:${watch.id}`, 'json');
+    const centerKey = geocodeKey(watch);
+    const cachedCenter = await env.CACHE.get(centerKey, 'json');
     center = cachedCenter || await geocode(env, watch, shouldDelayGeocode);
     const raw = await searchHotels(env, watch);
     properties = (raw.properties || [])
@@ -226,12 +237,18 @@ async function buildWatchResult(env, watch, shouldDelayGeocode = false) {
 
 async function refresh(env) {
   if (!env.SERPAPI_KEY) throw new Error('SERPAPI_KEY is not configured');
-  const watches = await loadWatches();
-  const output = { checked_at: new Date().toISOString(), source: 'cloudflare-worker', watches: [] };
+  const catalog = await loadWatches();
+  const watches = monitoredWatches(catalog);
+  const output = {
+    checked_at: new Date().toISOString(),
+    source: 'cloudflare-worker',
+    catalog_count: catalog.length,
+    watches: [],
+  };
 
   let geocodeMisses = 0;
   for (const watch of watches) {
-    const hasCachedCenter = Boolean(await env.CACHE.get(`geo:${watch.id}`));
+    const hasCachedCenter = Boolean(await env.CACHE.get(geocodeKey(watch)));
     const current = await buildWatchResult(env, watch, !hasCachedCenter && geocodeMisses > 0);
     if (!hasCachedCenter) geocodeMisses += 1;
     output.watches.push(current);
@@ -291,7 +308,7 @@ async function manualSearch(request, env) {
   const watches = await loadWatches();
   let requestedIds;
   if (body?.resort_ids === 'all') {
-    requestedIds = watches.map((watch) => watch.id);
+    requestedIds = monitoredWatches(watches).map((watch) => watch.id);
   } else if (Array.isArray(body?.resort_ids)) {
     requestedIds = [...new Set(body.resort_ids.map(String))];
   } else {
@@ -335,7 +352,7 @@ async function manualSearch(request, env) {
   const freshResults = [];
   let geocodeMisses = 0;
   for (const { watch, key } of misses) {
-    const hasCachedCenter = Boolean(await env.CACHE.get(`geo:${watch.id}`));
+    const hasCachedCenter = Boolean(await env.CACHE.get(geocodeKey(watch)));
     const current = await buildWatchResult(env, watch, !hasCachedCenter && geocodeMisses > 0);
     if (!hasCachedCenter) geocodeMisses += 1;
     freshResults.push(current);
@@ -357,6 +374,8 @@ async function manualSearch(request, env) {
 
 async function status(env) {
   const manual = await monthlyManualUsage(env);
+  const catalog = await loadWatches();
+  const automatic = monitoredWatches(catalog);
   let serpapi = null;
   let serpapiError = null;
 
@@ -382,7 +401,9 @@ async function status(env) {
   return {
     ok: true,
     schedule_utc: '20 0 * * *',
-    automatic_searches_per_run: (await loadWatches()).length,
+    catalog_count: catalog.length,
+    automatic_searches_per_run: automatic.length,
+    automatic_resort_ids: automatic.map((watch) => watch.id),
     manual_searches_used: manual.used,
     manual_searches_limit: MANUAL_MONTHLY_SERP_CALL_LIMIT,
     serpapi,
