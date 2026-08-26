@@ -1,0 +1,16 @@
+{
+  "name": "snow-season-where-to-live-cloudflare",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@cloudflare/playwright": "^1.3.0"
+  },
+  "devDependencies": {
+    "wrangler": "^4.36.0"
+  },
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "smoke": "node smoke-test.mjs",
+    "provider-unit": "node provider-unit-test.mjs"
+  }
+}
