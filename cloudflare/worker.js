@@ -351,27 +351,31 @@ async function searchHotels(env, watch, { forceRefresh = false } = {}) {
     });
     if (forceRefresh) params.set('no_cache', 'true');
 
+    let response;
     try {
-      const response = await fetch(`https://serpapi.com/search.json?${params}`);
-      let payload = null;
-      try {
-        payload = await response.json();
-      } catch {
-        payload = { error: `Non-JSON response (HTTP ${response.status})` };
-      }
-
-      if (response.ok && !payload?.error) {
-        await advanceSerpCursor(env);
-        return payload;
-      }
-
-      lastError = new Error(payload?.error || `SerpApi HTTP ${response.status}`);
-      if (!shouldTryAnotherSerpKey(response.status, payload) || index === keyPool.length - 1) throw lastError;
-      await env.CACHE.delete(SERP_POOL_STATUS_KEY);
+      response = await fetch(`https://serpapi.com/search.json?${params}`);
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err));
       if (index === keyPool.length - 1) break;
+      continue;
     }
+
+    let payload = null;
+    try {
+      payload = await response.json();
+    } catch {
+      payload = { error: `Non-JSON response (HTTP ${response.status})` };
+    }
+
+    if (response.ok && !payload?.error) {
+      await advanceSerpCursor(env);
+      return payload;
+    }
+
+    lastError = new Error(payload?.error || `SerpApi HTTP ${response.status}`);
+    const retryable = shouldTryAnotherSerpKey(response.status, payload);
+    if (!retryable || index === keyPool.length - 1) break;
+    await env.CACHE.delete(SERP_POOL_STATUS_KEY);
   }
 
   throw lastError || new Error('All configured SerpApi keys failed');
