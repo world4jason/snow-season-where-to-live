@@ -26,7 +26,7 @@
       <div class="search-copy">
         <p class="eyebrow">SKI STAY WATCHER</p>
         <h1>雪季住哪裡？</h1>
-        <p>從日本大型滑雪區與自選目的地中找住宿；白馬、志賀等大型區域會依實際住宿 base 分組，再用地圖與距離判斷。</p>
+        <p>把各種日本滑雪場榜單取聯集後，以實際住宿 base 搜尋房價；榜單名次只作標籤，不限制你能搜尋哪些住宿區。</p>
       </div>
 
       <div class="search-bar interactive-search-bar" aria-label="住宿搜尋條件">
@@ -63,8 +63,11 @@
         </div>
 
         <div class="search-field search-action-field">
-          <button id="liveSearchButton" class="search-submit-button" type="button">搜尋房間</button>
-          <span id="liveSearchStatus" class="date-search-status">選好條件後搜尋</span>
+          <div class="search-button-row">
+            <button id="liveSearchButton" class="search-submit-button" type="button">搜尋</button>
+            <button id="liveRefreshButton" class="search-refresh-button" type="button">強制刷新</button>
+          </div>
+          <span id="liveSearchStatus" class="date-search-status">搜尋會優先使用快取；強制刷新會略過快取。</span>
         </div>
       </div>
 
@@ -174,5 +177,6 @@
   <script src="enhancements.js"></script>
   <script src="catalog-ui.js"></script>
   <script src="catalog-metadata.js"></script>
+  <script src="ranking-badges.js"></script>
 </body>
 </html>
