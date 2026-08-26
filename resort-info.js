@@ -22,13 +22,21 @@
   }
 
   function googleTransitUrl(name) {
-    const query = `${name} ski resort access train bus 交通`; 
+    const query = `${name} ski resort access train bus 交通`;
     return `https://www.google.com/search?q=${encodeURIComponent(query)}`;
   }
 
   function currentWatch() {
     if (state.selectedResort === 'all') return null;
     return (state.data?.watches || []).find((watch) => watch.id === state.selectedResort) || null;
+  }
+
+  function searchCurrentConditions() {
+    mode = 'booking';
+    applyMode();
+    requestAnimationFrame(() => {
+      document.querySelector('#liveSearchButton')?.click();
+    });
   }
 
   function tagsFor(watch) {
@@ -174,6 +182,7 @@
           <p>${escapeHtml(covers.join(' · '))}</p>
         </div>
         <div class="resort-info-actions">
+          <button id="resortInfoSearchStays" class="resort-info-search-cta" type="button">用目前條件找住宿</button>
           ${officialLinks.map((link) => `<a href="${escapeHtml(link.url)}" target="_blank" rel="noopener">${escapeHtml(link.label || '官方網站')}</a>`).join('')}
           <a href="${escapeHtml(googleMapsUrl(query))}" target="_blank" rel="noopener">Google Maps</a>
         </div>
@@ -210,6 +219,7 @@
         </div>
       </div>
     `;
+    document.querySelector('#resortInfoSearchStays')?.addEventListener('click', searchCurrentConditions);
     renderProfileMap(watch);
   }
 
