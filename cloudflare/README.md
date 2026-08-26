@@ -35,7 +35,7 @@ After every Worker deployment run:
 node smoke-test.mjs
 ```
 
-The smoke test verifies health, SerpApi/account status, cached latest data, strict invalid-date rejection, one real Sapporo Teine search, result schema, budget enforcement, coordinates, and Google Maps URLs. The real-search part uses at most one SerpApi search when its 6-hour cache is cold.
+The smoke test verifies health, SerpApi/account status, the 48-base catalog, the 5-base automatic-monitoring limit, cached latest data, strict invalid-date rejection, one real Sugadaira search from the expanded catalog, result schema, budget enforcement, coordinates, and Google Maps URLs. The real-search part uses at most one SerpApi search when its 6-hour cache is cold.
 
 ## Endpoints
 
@@ -45,7 +45,7 @@ Basic Worker health check.
 
 ### `GET /api/latest`
 
-Returns the most recent daily cached result from KV.
+Returns the most recent daily cached result from KV. It contains only the five `auto_monitor` lodging bases.
 
 ### `POST /api/search`
 
@@ -57,7 +57,7 @@ Example:
 curl -X POST \
   -H 'Content-Type: application/json' \
   -d '{
-    "resort_ids": ["nozawa-jan"],
+    "resort_ids": ["sugadaira"],
     "check_in": "2027-01-15",
     "check_out": "2027-01-18",
     "adults": 2,
@@ -66,7 +66,7 @@ curl -X POST \
   https://snow-season-where-to-live-api.world4jason.workers.dev/api/search
 ```
 
-`resort_ids` can also be the string `"all"`.
+`resort_ids` can also be the string `"all"`; for quota safety, `"all"` means the five `auto_monitor` bases, not every catalog entry.
 
 Validation:
 
@@ -76,18 +76,18 @@ Validation:
 
 Protection:
 
-- same resort + dates + adults + budget is cached in KV for 6 hours
+- same lodging base + dates + adults + budget is cached in KV for 6 hours
 - the daily refresh seeds the same cache for default query conditions
 - public cache-miss SerpApi calls are capped at 80/month
 - Worker Rate Limiting binding protects rapid repeated calls
 
 ### `GET /api/status`
 
-Returns backend/SerpApi quota information without exposing the API key. The SerpApi Account API call itself is free and does not consume search quota.
+Returns backend/SerpApi quota information without exposing the API key. It also reports catalog size and automatic-monitoring count. The SerpApi Account API call itself is free and does not consume search quota.
 
 ### `POST /api/refresh`
 
-Protected full refresh for all configured ski areas:
+Protected refresh for the five configured `auto_monitor` lodging bases:
 
 ```bash
 curl -X POST \
@@ -95,7 +95,7 @@ curl -X POST \
   https://snow-season-where-to-live-api.world4jason.workers.dev/api/refresh
 ```
 
-Use this sparingly because it consumes one SerpApi search per configured resort when SerpApi does not serve its own cache.
+It does **not** query all 48 lodging bases, which keeps the free SerpApi budget under control.
 
 ## Schedule
 
@@ -109,10 +109,16 @@ Cloudflare Cron runs in UTC, so this is **08:20 Taiwan time**.
 
 ## KV keys
 
-- `latest` — most recent daily full result.
-- `geo:<watch-id>` — cached resort/search-center geocode.
+- `latest` — most recent daily five-base automatic-monitoring result.
+- `geo:v2:<watch-id>:<center-query>` — cached resort/search-center geocode.
 - `manual:<watch-id>:<check-in>:<check-out>:<adults>:<budget>` — 6-hour live-search cache.
 - `manual-serp-usage:<YYYY-MM>` — public live-search SerpApi cache-miss counter.
+
+## Catalog sources
+
+- `config/watches.json` — primary lodging bases, including Hakuba/Shiga special handling and five daily monitors.
+- `config/extra-watches.json` — additional lodging bases discovered from longest-run, popularity, scale, and current course-area ranking sets.
+- `config/rankings.json` — normalized ranking definitions, sources, and caveats.
 
 ## Frontend connection
 
