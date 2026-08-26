@@ -1,4 +1,5 @@
 const BASE = (process.env.SNOW_API_BASE || 'https://snow-season-where-to-live-api.world4jason.workers.dev').replace(/\/$/, '');
+const FORCE_REAL_REFRESH = process.env.SMOKE_FORCE_REFRESH === '1';
 
 const ok = (condition, message) => {
   if (!condition) throw new Error(message);
@@ -16,6 +17,15 @@ async function jsonRequest(path, init) {
   return { response, body };
 }
 
+const searchBody = (overrides = {}) => ({
+  resort_ids: ['sugadaira'],
+  check_in: '2027-01-15',
+  check_out: '2027-01-18',
+  adults: 2,
+  max_price_per_night: 6000,
+  ...overrides,
+});
+
 console.log(`Testing ${BASE}\n`);
 
 {
@@ -32,11 +42,13 @@ console.log(`Testing ${BASE}\n`);
   ok(Number(body?.automatic_searches_per_run) === 5, '/api/status limits daily automatic searches to 5');
   ok(Array.isArray(body?.automatic_resort_ids) && body.automatic_resort_ids.length === 5, '/api/status exposes five automatic resort ids');
   ok(Number.isFinite(Number(body?.manual_searches_limit)), '/api/status exposes manual quota limit');
+  ok(Number(body?.serpapi_pool?.key_count) >= 1, '/api/status exposes at least one configured SerpApi key');
+  ok(Array.isArray(body?.serpapi_pool?.keys), '/api/status exposes safe key-pool health metadata');
+
   if (body?.serpapi) {
     console.log(`INFO  SerpApi plan=${body.serpapi.plan_name ?? 'unknown'} usage=${body.serpapi.this_month_usage ?? '?'} left=${body.serpapi.total_searches_left ?? '?'}`);
-  } else if (body?.serpapi_error) {
-    console.warn(`WARN  SerpApi account status unavailable: ${body.serpapi_error}`);
   }
+  console.log(`INFO  key pool=${body?.serpapi_pool?.key_count ?? 0} key(s), account groups=${body?.serpapi_pool?.account_group_count ?? '?'}, shared quota=${body?.serpapi_pool?.shared_quota_detected === true}`);
 }
 
 {
@@ -51,36 +63,34 @@ console.log(`Testing ${BASE}\n`);
   const { response } = await jsonRequest('/api/search', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      resort_ids: ['sugadaira'],
-      check_in: '2027-02-31',
-      check_out: '2027-03-02',
-      adults: 2,
-      max_price_per_night: 6000,
-    }),
+    body: JSON.stringify(searchBody({ check_in: '2027-02-31', check_out: '2027-03-02' })),
   });
   ok(response.status === 400, '/api/search rejects invalid calendar dates');
+}
+
+{
+  const { response } = await jsonRequest('/api/search', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(searchBody({ resort_ids: ['sugadaira', 'nozawa-jan'], force_refresh: true })),
+  });
+  ok(response.status === 400, 'forced refresh rejects multi-area requests to protect quota');
 }
 
 {
   const { response, body } = await jsonRequest('/api/search', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      resort_ids: ['sugadaira'],
-      check_in: '2027-01-15',
-      check_out: '2027-01-18',
-      adults: 2,
-      max_price_per_night: 6000,
-    }),
+    body: JSON.stringify(searchBody()),
   });
 
-  ok(response.ok, '/api/search extra-catalog request returns 2xx');
+  ok(response.ok, '/api/search cached-capable request returns 2xx');
   ok(Array.isArray(body?.watches) && body.watches.length === 1, '/api/search returns requested extra lodging destination');
+  ok(body?.force_refresh === false, 'normal search reports force_refresh=false');
 
   const watch = body.watches[0];
-  ok(watch?.id === 'sugadaira', '/api/search returns Sugadaira lodging base from extra catalog');
-  ok(Array.isArray(watch?.ranking_tags) && watch.ranking_tags.includes('popularity'), 'Sugadaira carries ranking metadata');
+  ok(watch?.id === 'sugadaira', '/api/search returns Sugadaira lodging base from union catalog');
+  ok(Array.isArray(watch?.ranking_tags) && watch.ranking_tags.includes('popularity'), 'Sugadaira carries Top-20 ranking tag metadata');
   ok(Array.isArray(watch?.covers) && watch.covers.includes('Sugadaira Kogen Snow Resort'), 'Sugadaira carries resort coverage metadata');
   ok(watch?.check_in === '2027-01-15' && watch?.check_out === '2027-01-18', '/api/search preserves requested dates');
   ok(watch?.adults === 2, '/api/search preserves guest count');
@@ -97,6 +107,19 @@ console.log(`Testing ${BASE}\n`);
   }
 
   console.log(`INFO  Sugadaira live result count=${watch.match_count}, cached=${body.cached === true}`);
+}
+
+if (FORCE_REAL_REFRESH) {
+  const { response, body } = await jsonRequest('/api/search', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(searchBody({ force_refresh: true })),
+  });
+  ok(response.ok, 'optional real forced refresh returns 2xx');
+  ok(body?.force_refresh === true && body?.cached === false, 'forced refresh bypasses local cache');
+  console.log('INFO  optional forced refresh executed; this intentionally requests fresh SerpApi data.');
+} else {
+  console.log('INFO  skipped real forced refresh; set SMOKE_FORCE_REFRESH=1 to test it intentionally.');
 }
 
 console.log('\nALL SMOKE TESTS PASSED');
