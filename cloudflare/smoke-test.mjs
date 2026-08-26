@@ -28,7 +28,7 @@ console.log(`Testing ${BASE}\n`);
   const { response, body } = await jsonRequest('/api/status');
   ok(response.ok, '/api/status returns 2xx');
   ok(body?.ok === true, '/api/status reports ok=true');
-  ok(Number(body?.catalog_count) === 43, '/api/status exposes 43 practical lodging bases');
+  ok(Number(body?.catalog_count) === 48, '/api/status exposes 48 practical lodging bases');
   ok(Number(body?.automatic_searches_per_run) === 5, '/api/status limits daily automatic searches to 5');
   ok(Array.isArray(body?.automatic_resort_ids) && body.automatic_resort_ids.length === 5, '/api/status exposes five automatic resort ids');
   ok(Number.isFinite(Number(body?.manual_searches_limit)), '/api/status exposes manual quota limit');
