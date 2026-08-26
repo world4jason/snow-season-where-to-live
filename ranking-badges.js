@@ -3,7 +3,7 @@
     longest_run: '單一最長雪道榜',
     popularity: '人氣 Top 20',
     course_area_current: '面積 Top 20',
-    representative_scale: '大型雪場／聯網代表',
+    representative_scale: '大型雪區',
   };
   const ALIASES = {
     course_area: 'course_area_current',
