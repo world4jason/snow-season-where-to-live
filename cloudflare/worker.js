@@ -2,6 +2,9 @@ const WATCHES_URL = 'https://raw.githubusercontent.com/world4jason/snow-season-w
 const EXTRA_WATCHES_URL = 'https://raw.githubusercontent.com/world4jason/snow-season-where-to-live/main/config/extra-watches.json';
 const MANUAL_CACHE_TTL = 21600;
 const MANUAL_MONTHLY_SERP_CALL_LIMIT = 80;
+const SERP_POOL_STATUS_TTL = 300;
+const SERP_POOL_STATUS_KEY = 'serpapi-pool-status:v1';
+const SERP_CURSOR_KEY = 'serpapi-key-cursor:v1';
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
@@ -157,6 +160,142 @@ function monitoredWatches(watches) {
   return watches.filter((watch) => watch.auto_monitor === true);
 }
 
+function serpApiKeyEntries(env) {
+  const rows = [];
+
+  if (env.SERPAPI_KEYS_JSON) {
+    try {
+      const parsed = JSON.parse(env.SERPAPI_KEYS_JSON);
+      if (Array.isArray(parsed)) {
+        parsed.forEach((item, index) => {
+          if (typeof item === 'string' && item.trim()) {
+            rows.push({ label: `key-${index + 1}`, key: item.trim() });
+          } else if (item && typeof item === 'object' && String(item.key || '').trim()) {
+            rows.push({
+              label: String(item.name || item.label || `key-${index + 1}`).trim(),
+              key: String(item.key).trim(),
+            });
+          }
+        });
+      }
+    } catch {
+      // Fall back to SERPAPI_KEY below if the pool secret is malformed.
+    }
+  }
+
+  if (String(env.SERPAPI_KEY || '').trim()) {
+    rows.push({ label: 'primary', key: String(env.SERPAPI_KEY).trim() });
+  }
+
+  const seen = new Set();
+  return rows.filter((row) => {
+    if (!row.key || seen.has(row.key)) return false;
+    seen.add(row.key);
+    return true;
+  });
+}
+
+function hasSerpApiKeys(env) {
+  return serpApiKeyEntries(env).length > 0;
+}
+
+async function fetchSerpAccount(entry) {
+  const params = new URLSearchParams({ api_key: entry.key });
+  const response = await fetch(`https://serpapi.com/account.json?${params}`);
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  const account = await response.json();
+  return {
+    label: entry.label,
+    account_id: account.account_id ?? null,
+    account_status: account.account_status ?? null,
+    plan_name: account.plan_name ?? null,
+    searches_per_month: account.searches_per_month ?? null,
+    this_month_usage: account.this_month_usage ?? null,
+    total_searches_left: account.total_searches_left ?? account.plan_searches_left ?? null,
+    rate_limit_per_hour: account.account_rate_limit_per_hour ?? null,
+    error: null,
+  };
+}
+
+async function serpPoolHealth(env, force = false) {
+  const entries = serpApiKeyEntries(env);
+  if (!entries.length) return [];
+  const signature = entries.map((entry) => entry.label).join('|');
+
+  if (!force) {
+    const cached = await env.CACHE.get(SERP_POOL_STATUS_KEY, 'json');
+    if (
+      cached?.signature === signature
+      && Number(cached?.checked_at || 0) > Date.now() - SERP_POOL_STATUS_TTL * 1000
+      && Array.isArray(cached?.statuses)
+    ) {
+      return entries.map((entry, index) => ({
+        ...entry,
+        ...(cached.statuses[index] || { label: entry.label, error: 'No cached status' }),
+      }));
+    }
+  }
+
+  const statuses = await Promise.all(entries.map(async (entry) => {
+    try {
+      return await fetchSerpAccount(entry);
+    } catch (err) {
+      return {
+        label: entry.label,
+        account_id: null,
+        account_status: null,
+        plan_name: null,
+        searches_per_month: null,
+        this_month_usage: null,
+        total_searches_left: null,
+        rate_limit_per_hour: null,
+        error: err instanceof Error ? err.message : String(err),
+      };
+    }
+  }));
+
+  await env.CACHE.put(SERP_POOL_STATUS_KEY, JSON.stringify({
+    signature,
+    checked_at: Date.now(),
+    statuses: statuses.map(({ label, ...status }) => ({ label, ...status })),
+  }), { expirationTtl: SERP_POOL_STATUS_TTL * 2 });
+
+  return entries.map((entry, index) => ({ ...entry, ...statuses[index] }));
+}
+
+async function orderedSerpApiKeys(env) {
+  const health = await serpPoolHealth(env);
+  if (!health.length) return [];
+
+  const knownAvailable = health.filter((entry) => {
+    if (entry.error) return false;
+    const status = String(entry.account_status || '').toLowerCase();
+    if (status && status !== 'active') return false;
+    if (entry.total_searches_left != null && Number(entry.total_searches_left) <= 0) return false;
+    return true;
+  });
+  const unknown = health.filter((entry) => entry.error);
+  const available = knownAvailable.length ? knownAvailable : unknown;
+  if (!available.length) return [];
+
+  const cursor = Number(await env.CACHE.get(SERP_CURSOR_KEY) || 0);
+  const start = Number.isFinite(cursor) ? Math.abs(cursor) % available.length : 0;
+  return [...available.slice(start), ...available.slice(0, start)];
+}
+
+async function advanceSerpCursor(env) {
+  const entries = serpApiKeyEntries(env);
+  if (entries.length <= 1) return;
+  const current = Number(await env.CACHE.get(SERP_CURSOR_KEY) || 0);
+  await env.CACHE.put(SERP_CURSOR_KEY, String((current + 1) % entries.length));
+}
+
+function shouldTryAnotherSerpKey(status, payload) {
+  if ([401, 403, 429].includes(status)) return true;
+  const text = String(payload?.error || payload?.message || '').toLowerCase();
+  return /api.?key|quota|search(?:es)?.*(?:left|limit)|rate.?limit|account.*(?:inactive|suspended)|monthly.*limit/.test(text);
+}
+
 function geocodeKey(watch) {
   const centerQuery = String(watch.center_query || watch.query || '').trim();
   return `geo:v2:${watch.id}:${encodeURIComponent(centerQuery)}`;
@@ -192,30 +331,57 @@ async function geocode(env, watch, shouldDelay = false) {
   return center;
 }
 
-async function searchHotels(env, watch) {
-  const params = new URLSearchParams({
-    engine: 'google_hotels',
-    q: watch.query,
-    check_in_date: watch.check_in,
-    check_out_date: watch.check_out,
-    adults: String(watch.adults || 2),
-    currency: watch.currency || 'TWD',
-    max_price: String(watch.max_price_per_night),
-    sort_by: '3',
-    api_key: env.SERPAPI_KEY,
-  });
-  const response = await fetch(`https://serpapi.com/search.json?${params}`);
-  if (!response.ok) throw new Error(`SerpApi HTTP ${response.status}`);
-  const payload = await response.json();
-  if (payload?.error) throw new Error(payload.error);
-  return payload;
+async function searchHotels(env, watch, { forceRefresh = false } = {}) {
+  const keyPool = await orderedSerpApiKeys(env);
+  if (!keyPool.length) throw new Error('No SerpApi key with available quota is configured');
+
+  let lastError = null;
+  for (let index = 0; index < keyPool.length; index += 1) {
+    const entry = keyPool[index];
+    const params = new URLSearchParams({
+      engine: 'google_hotels',
+      q: watch.query,
+      check_in_date: watch.check_in,
+      check_out_date: watch.check_out,
+      adults: String(watch.adults || 2),
+      currency: watch.currency || 'TWD',
+      max_price: String(watch.max_price_per_night),
+      sort_by: '3',
+      api_key: entry.key,
+    });
+    if (forceRefresh) params.set('no_cache', 'true');
+
+    try {
+      const response = await fetch(`https://serpapi.com/search.json?${params}`);
+      let payload = null;
+      try {
+        payload = await response.json();
+      } catch {
+        payload = { error: `Non-JSON response (HTTP ${response.status})` };
+      }
+
+      if (response.ok && !payload?.error) {
+        await advanceSerpCursor(env);
+        return payload;
+      }
+
+      lastError = new Error(payload?.error || `SerpApi HTTP ${response.status}`);
+      if (!shouldTryAnotherSerpKey(response.status, payload) || index === keyPool.length - 1) throw lastError;
+      await env.CACHE.delete(SERP_POOL_STATUS_KEY);
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+      if (index === keyPool.length - 1) break;
+    }
+  }
+
+  throw lastError || new Error('All configured SerpApi keys failed');
 }
 
 function manualCacheKey(watch) {
   return `manual:${watch.id}:${watch.check_in}:${watch.check_out}:${watch.adults || 2}:${Math.round(Number(watch.max_price_per_night))}`;
 }
 
-async function buildWatchResult(env, watch, shouldDelayGeocode = false) {
+async function buildWatchResult(env, watch, shouldDelayGeocode = false, { forceRefresh = false } = {}) {
   const nights = nightsBetween(watch.check_in, watch.check_out);
   let center = null;
   let properties = [];
@@ -225,7 +391,7 @@ async function buildWatchResult(env, watch, shouldDelayGeocode = false) {
     const centerKey = geocodeKey(watch);
     const cachedCenter = await env.CACHE.get(centerKey, 'json');
     center = cachedCenter || await geocode(env, watch, shouldDelayGeocode);
-    const raw = await searchHotels(env, watch);
+    const raw = await searchHotels(env, watch, { forceRefresh });
     properties = (raw.properties || [])
       .map((prop) => normalizeProperty(prop, watch, center, nights))
       .filter((prop) => prop.nightly_price != null && prop.nightly_price <= Number(watch.max_price_per_night))
@@ -247,7 +413,7 @@ async function buildWatchResult(env, watch, shouldDelayGeocode = false) {
 }
 
 async function refresh(env) {
-  if (!env.SERPAPI_KEY) throw new Error('SERPAPI_KEY is not configured');
+  if (!hasSerpApiKeys(env)) throw new Error('No SerpApi key is configured');
   const catalog = await loadWatches();
   const watches = monitoredWatches(catalog);
   const output = {
@@ -290,7 +456,7 @@ async function consumeManualQuota(env, cost) {
 }
 
 async function manualSearch(request, env) {
-  if (!env.SERPAPI_KEY) return jsonResponse({ error: 'SERPAPI_KEY is not configured' }, 503);
+  if (!hasSerpApiKeys(env)) return jsonResponse({ error: 'No SerpApi key is configured' }, 503);
 
   let body;
   try {
@@ -303,6 +469,7 @@ async function manualSearch(request, env) {
   const checkOut = String(body?.check_out || '');
   const adults = Number(body?.adults ?? 2);
   const maxPrice = Number(body?.max_price_per_night ?? 6000);
+  const forceRefresh = body?.force_refresh === true;
   const start = parseDateOnly(checkIn);
   const end = parseDateOnly(checkOut);
 
@@ -328,6 +495,9 @@ async function manualSearch(request, env) {
   if (!requestedIds.length || requestedIds.length > watches.length) {
     return jsonResponse({ error: 'Select at least one valid resort' }, 400);
   }
+  if (forceRefresh && requestedIds.length !== 1) {
+    return jsonResponse({ error: 'Forced refresh is limited to one lodging area per request' }, 400);
+  }
 
   const watchById = new Map(watches.map((watch) => [watch.id, watch]));
   const selected = requestedIds.map((id) => watchById.get(id)).filter(Boolean);
@@ -344,7 +514,7 @@ async function manualSearch(request, env) {
       max_price_per_night: Math.round(maxPrice),
     };
     const key = manualCacheKey(watch);
-    const cached = await env.CACHE.get(key, 'json');
+    const cached = forceRefresh ? null : await env.CACHE.get(key, 'json');
     if (cached) cachedResults.push(cached);
     else misses.push({ watch, key });
   }
@@ -364,7 +534,12 @@ async function manualSearch(request, env) {
   let geocodeMisses = 0;
   for (const { watch, key } of misses) {
     const hasCachedCenter = Boolean(await env.CACHE.get(geocodeKey(watch)));
-    const current = await buildWatchResult(env, watch, !hasCachedCenter && geocodeMisses > 0);
+    const current = await buildWatchResult(
+      env,
+      watch,
+      !hasCachedCenter && geocodeMisses > 0,
+      { forceRefresh },
+    );
     if (!hasCachedCenter) geocodeMisses += 1;
     freshResults.push(current);
     if (!current.error) {
@@ -376,8 +551,9 @@ async function manualSearch(request, env) {
   const ordered = requestedIds.map((id) => resultById.get(id)).filter(Boolean);
   return jsonResponse({
     checked_at: new Date().toISOString(),
-    source: 'manual-search',
-    cached: misses.length === 0,
+    source: forceRefresh ? 'forced-refresh' : 'manual-search',
+    cached: !forceRefresh && misses.length === 0,
+    force_refresh: forceRefresh,
     watches: ordered,
     manual_usage: usage,
   });
@@ -387,27 +563,18 @@ async function status(env) {
   const manual = await monthlyManualUsage(env);
   const catalog = await loadWatches();
   const automatic = monitoredWatches(catalog);
-  let serpapi = null;
-  let serpapiError = null;
-
-  if (env.SERPAPI_KEY) {
-    try {
-      const params = new URLSearchParams({ api_key: env.SERPAPI_KEY });
-      const response = await fetch(`https://serpapi.com/account.json?${params}`);
-      if (!response.ok) throw new Error(`SerpApi Account HTTP ${response.status}`);
-      const account = await response.json();
-      serpapi = {
-        account_status: account.account_status ?? null,
-        plan_name: account.plan_name ?? null,
-        searches_per_month: account.searches_per_month ?? null,
-        this_month_usage: account.this_month_usage ?? null,
-        total_searches_left: account.total_searches_left ?? account.plan_searches_left ?? null,
-        rate_limit_per_hour: account.account_rate_limit_per_hour ?? null,
-      };
-    } catch (err) {
-      serpapiError = err instanceof Error ? err.message : String(err);
-    }
-  }
+  const pool = await serpPoolHealth(env);
+  const accountGroups = new Set(pool.map((entry) => entry.account_id).filter(Boolean));
+  const publicPool = pool.map((entry) => ({
+    label: entry.label,
+    account_status: entry.account_status ?? null,
+    plan_name: entry.plan_name ?? null,
+    searches_per_month: entry.searches_per_month ?? null,
+    this_month_usage: entry.this_month_usage ?? null,
+    total_searches_left: entry.total_searches_left ?? null,
+    rate_limit_per_hour: entry.rate_limit_per_hour ?? null,
+    error: entry.error ?? null,
+  }));
 
   return {
     ok: true,
@@ -417,8 +584,13 @@ async function status(env) {
     automatic_resort_ids: automatic.map((watch) => watch.id),
     manual_searches_used: manual.used,
     manual_searches_limit: MANUAL_MONTHLY_SERP_CALL_LIMIT,
-    serpapi,
-    serpapi_error: serpapiError,
+    serpapi: publicPool[0] || null,
+    serpapi_pool: {
+      key_count: publicPool.length,
+      account_group_count: accountGroups.size || null,
+      shared_quota_detected: publicPool.length > 1 && accountGroups.size > 0 && accountGroups.size < publicPool.length,
+      keys: publicPool,
+    },
   };
 }
 
