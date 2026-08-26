@@ -5,14 +5,18 @@
     course_area_current: '面積 Top 20',
     representative_scale: '大型雪場／聯網代表',
   };
+  const ALIASES = {
+    course_area: 'course_area_current',
+  };
 
   let overlay = {};
 
   function combinedTags(watch) {
-    const tags = new Set([
+    const rawTags = [
       ...(Array.isArray(watch?.ranking_tags) ? watch.ranking_tags : []),
       ...(Array.isArray(overlay?.[watch?.id]) ? overlay[watch.id] : []),
-    ]);
+    ];
+    const tags = new Set(rawTags.map((tag) => ALIASES[tag] || tag));
     return [...tags].filter((tag) => LABELS[tag]);
   }
 
