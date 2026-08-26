@@ -38,18 +38,19 @@
 .search-inline-select,
 .search-inline-input { width: 100%; }
 
+.currency-icon {
+  min-width: 34px;
+  font-size: 13px;
+  letter-spacing: -.04em;
+}
+
 .budget-input-wrap {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 0;
 }
 
-.budget-prefix {
-  flex: 0 0 auto;
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 750;
-}
+.budget-prefix { display: none; }
 
 .date-arrow {
   flex: 0 0 auto;
