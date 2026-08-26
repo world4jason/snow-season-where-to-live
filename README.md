@@ -29,16 +29,25 @@ GitHub Actions is **not** used for the backend.
 
 ## Lodging catalog
 
-The catalog covers the first 20 Japanese ski-resort entries when sorted by total slope length on Skiresort.info, while accommodation searches are grouped by practical lodging bases rather than blindly treating every lift area as a separate town.
+The catalog is the practical lodging-base union of several Japan ski-area discovery/ranking dimensions rather than one ambiguous "Top 20":
+
+- single longest continuous run
+- 2025–26 Weathernews popularity/attention ranking
+- current Tabiris published course-area ranking
+- a representative large-resort/network discovery set based on linked piste length and course count
+
+The last item is intentionally treated as a discovery set rather than a strict numeric ranking because it mixes different units and network definitions. Ranking metadata and source notes live in `config/rankings.json`.
 
 Special handling:
 
-- **Hakuba Valley:** split into Hakuba Village, Otari/Tsugaike, and Omachi lodging bases, covering all 10 official Hakuba Valley resorts.
-- **Shiga Kogen:** split into the four official lift-map areas: Central (Ichinose/Takamagahara), East (Yakebitai/Okushiga), West (Sun Valley/Maruike/Hasuike/Giant), and South (Kumanoyu/Yokoteyama/Shibutoge).
-- **Niseko United:** one broad lodging destination with Hirafu as the map-distance reference; the four resort bases remain visible in the lodging note/map context.
+- **Hakuba Valley:** split into Hakuba Village, Otari/Tsugaike, and Omachi lodging bases, covering the official Hakuba Valley resort network without pretending all resorts share one useful lodging center.
+- **Shiga Kogen:** split into Central, East, West, and South lodging bases so Yakebitai/Okushiga and Kumanoyu/Yokoteyama are not judged by an Ichinose-only distance center.
+- **Niseko United:** one broad lodging destination with Hirafu as the distance reference; its resort coverage is carried as metadata.
 - **Sapporo Teine:** retained as a custom destination, with Sapporo city used for hotel discovery and the ski resort used as the distance center.
+- **Yuzawa:** broad Echigo-Yuzawa remains available, while Iwappara and Kandatsu also have precise lodging bases for distance-sensitive searches.
+- **Remote/urban-access areas:** Kurodake uses Sounkyo, Tengendai uses Shirabu Onsen, Senjojiki uses Komagane, and similar areas use practical lodging towns rather than the lift coordinates as the hotel-search phrase.
 
-The resulting app catalog contains **24 practical lodging bases**. See `config/watches.json` for the exact list and coverage metadata.
+The resulting catalog contains **48 practical lodging bases** across `config/watches.json` and `config/extra-watches.json`.
 
 ## Implemented UI behavior
 
@@ -65,7 +74,7 @@ The SerpApi Free plan currently provides 250 searches/month. This project uses:
 - Same lodging area + dates + adults + budget is cached for 6 hours.
 - Daily automatic results seed the same 6-hour cache for the five core monitored areas.
 - Cloudflare Worker rate limiter protects `/api/search` from rapid repeated calls.
-- Selecting one non-core lodging area queries only that area; the app does not spend 20+ searches just because the catalog is large.
+- Selecting one non-core lodging area queries only that area; the app does not spend dozens of searches just because the catalog is large.
 
 This keeps expected automatic + public manual use below the free-plan search limit. Admin-triggered `/api/refresh` calls are intentionally not included in that public quota, so use them sparingly.
 
@@ -88,7 +97,7 @@ npx wrangler deploy
 node smoke-test.mjs
 ```
 
-The smoke test verifies the production API, catalog size, the 5-area automatic-monitoring limit, strict date validation, one real Hakuba Village hotel search, result schema, budget enforcement, coordinates, and Google Maps URLs.
+The smoke test verifies the production API, **48-base catalog**, the 5-area automatic-monitoring limit, strict date validation, a real search from the expanded ranking catalog, result schema, budget enforcement, coordinates, and Google Maps URLs.
 
 ## Schedule
 
@@ -106,3 +115,4 @@ Cloudflare Cron uses UTC, so this is **08:20 Taiwan time**.
 - A returned property with a nightly price is treated as having a sellable price for that query at that moment; it is not a guarantee that every booking channel has availability.
 - Distance is straight-line distance from the configured/geocoded ski or lodging reference center, not driving/transit distance.
 - Free cancellation, included breakfast, and ski-in/ski-out are shown only when source data explicitly indicates them.
+- Ski-area ranking figures can differ by source, season, operating footprint, and whether a linked network or an individual resort is measured; ranking metadata therefore preserves the metric/source instead of collapsing everything into one score.
