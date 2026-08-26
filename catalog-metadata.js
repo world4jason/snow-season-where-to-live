@@ -1,4 +1,8 @@
 (() => {
+  const CONFIG_URLS = [
+    'config/watches.json',
+    'config/extra-watches.json',
+  ];
   const DYNAMIC_FIELDS = [
     'check_in',
     'check_out',
@@ -14,16 +18,26 @@
     'pending',
   ];
 
+  async function loadCatalog() {
+    const groups = await Promise.all(CONFIG_URLS.map(async (url) => {
+      const response = await fetch(`${url}?v=${Date.now()}`);
+      if (!response.ok) throw new Error(`Unable to load ${url}`);
+      const rows = await response.json();
+      return Array.isArray(rows) ? rows : [];
+    }));
+    const byId = new Map();
+    groups.flat().forEach((metadata) => byId.set(metadata.id, metadata));
+    return Array.from(byId.values());
+  }
+
   async function syncCatalogMetadata() {
     let config;
     try {
-      const response = await fetch(`config/watches.json?v=${Date.now()}`);
-      if (!response.ok) return;
-      config = await response.json();
+      config = await loadCatalog();
     } catch {
       return;
     }
-    if (!Array.isArray(config) || !config.length) return;
+    if (!config.length) return;
 
     for (let attempt = 0; attempt < 60 && !state?.data; attempt += 1) {
       await new Promise((resolve) => setTimeout(resolve, 100));
