@@ -41,9 +41,7 @@ Value example:
 ]
 ```
 
-The Worker uses the free SerpApi Account API to check pool health/quota, then round-robins available keys and fails over when a key is unavailable/exhausted. Key values are never returned to the browser.
-
-Important: SerpApi Team Management supports multiple API keys under one shared account, but searches, plan, and billing are shared at the account level. Multiple keys from the same account therefore do **not** multiply the monthly quota; they are useful for isolation, tracking, and failover. Do not use separate free accounts as a quota-evasion mechanism.
+The Worker checks pool health/quota, round-robins available keys, and fails over when a key is unavailable/exhausted. Key values are never returned to the browser. Multiple keys from one SerpApi account/team still share that account's search quota.
 
 Admin secret:
 
@@ -55,12 +53,10 @@ The KV namespace and public live-search rate limiter are configured in `wrangler
 
 ## Search vs forced refresh
 
-The web UI now has two distinct actions:
+- **搜尋** — uses the app's 6-hour KV cache first. If it reaches SerpApi, SerpApi's own default one-hour cache remains allowed.
+- **強制刷新** — only allowed for one lodging base at a time. It bypasses the app cache and sends `no_cache=true` to SerpApi, intentionally requesting fresh Google Hotels data.
 
-- **搜尋** — uses the app's 6-hour KV cache first. If it reaches SerpApi, SerpApi's own default 1-hour cache remains allowed; cached SerpApi searches are free.
-- **強制刷新** — only allowed for one lodging base at a time. It bypasses the app cache and sends `no_cache=true` to SerpApi, intentionally requesting fresh Google Hotels data. A successful fresh request can consume one SerpApi search credit.
-
-This separation makes the cost semantics explicit instead of making every click look like a refresh.
+A searched zero-result response means **zero properties within the nightly budget**, not "the destination has no rooms". The enhanced Worker exposes a lodging-area Google Maps reference and, after a normal fresh search, can reuse the identical SerpApi query to read `non_matching_properties` as over-budget references.
 
 ## Production verification
 
@@ -70,7 +66,16 @@ After every Worker deployment run:
 node smoke-test.mjs
 ```
 
-The default smoke test verifies health, key-pool status, the 48-base catalog, the 5-base automatic-monitoring limit, cached latest data, strict invalid-date rejection, forced-refresh quota protection, one normal Sugadaira search, result schema, budget enforcement, coordinates, and Google Maps URLs.
+The default smoke test verifies:
+
+- health and safe SerpApi pool status
+- **48 raw ranking-union bases / 46 active winter bases**
+- Senjojiki and Okutadami exclusion enforcement
+- five-base automatic monitoring
+- cost metadata: monitored refresh = 5, full active catalog estimate = 46
+- strict date validation and forced-refresh quota protection
+- one normal Sugadaira search
+- per-night budget enforcement, result schema, coordinates, and Google Maps references
 
 It deliberately skips a real forced refresh by default. To test that path intentionally:
 
@@ -92,7 +97,7 @@ Returns the most recent daily cached result from KV. It contains only the five `
 
 Public search/refresh endpoint used by the GitHub Pages search bar.
 
-Normal cache-friendly search:
+Example:
 
 ```bash
 curl -X POST \
@@ -108,23 +113,7 @@ curl -X POST \
   https://snow-season-where-to-live-api.world4jason.workers.dev/api/search
 ```
 
-Forced refresh:
-
-```bash
-curl -X POST \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "resort_ids": ["sugadaira"],
-    "check_in": "2027-01-15",
-    "check_out": "2027-01-18",
-    "adults": 2,
-    "max_price_per_night": 6000,
-    "force_refresh": true
-  }' \
-  https://snow-season-where-to-live-api.world4jason.workers.dev/api/search
-```
-
-For quota safety, forced refresh accepts exactly one lodging base per request. `resort_ids: "all"` continues to mean the five `auto_monitor` bases for normal search, not every catalog entry.
+For quota safety, forced refresh accepts exactly one lodging base per request. `resort_ids: "all"` means the five `auto_monitor` bases for normal search, not every catalog entry. Requests for IDs listed in `config/excluded-resorts.json` are rejected by the public API.
 
 Validation:
 
@@ -142,15 +131,16 @@ Protection:
 
 ### `GET /api/status`
 
-Returns backend quota information without exposing API keys. It includes:
+Returns backend/quota information without exposing API key values. It includes:
 
-- catalog size
+- raw catalog count and active winter catalog count
+- excluded resort IDs
 - automatic-monitoring count
+- estimated monitored-refresh cost
+- estimated all-active-catalog refresh cost
 - manual search budget
 - safe per-key SerpApi health/remaining-quota metadata
 - whether multiple configured keys appear to share one SerpApi account quota
-
-The SerpApi Account API itself is free and does not consume search quota.
 
 ### `POST /api/refresh`
 
@@ -162,7 +152,7 @@ curl -X POST \
   https://snow-season-where-to-live-api.world4jason.workers.dev/api/refresh
 ```
 
-It does **not** query all catalog lodging bases.
+It does **not** query all 46 active lodging bases. At current configuration it deliberately issues at most five hotel searches per run.
 
 ## Schedule
 
@@ -187,6 +177,7 @@ Cloudflare Cron runs in UTC, so this is **08:20 Taiwan time**.
 
 - `config/watches.json` — primary lodging bases, including Hakuba/Shiga special handling and five daily monitors.
 - `config/extra-watches.json` — additional lodging bases from the union of ranking/discovery lists.
+- `config/excluded-resorts.json` — special-season destinations excluded from the active winter catalog.
 - `config/rankings.json` — normalized ranking definitions, sources, and caveats.
 - `config/ranking-tags-by-id.json` — ranking-label overlays for core lodging bases.
 
