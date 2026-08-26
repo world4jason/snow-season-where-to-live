@@ -1,4 +1,5 @@
 const WATCHES_URL = 'https://raw.githubusercontent.com/world4jason/snow-season-where-to-live/main/config/watches.json';
+const EXTRA_WATCHES_URL = 'https://raw.githubusercontent.com/world4jason/snow-season-where-to-live/main/config/extra-watches.json';
 const MANUAL_CACHE_TTL = 21600;
 const MANUAL_MONTHLY_SERP_CALL_LIMIT = 80;
 const CORS_HEADERS = {
@@ -131,15 +132,25 @@ function normalizeProperty(prop, watch, center, nights) {
   };
 }
 
-async function loadWatches() {
-  const response = await fetch(WATCHES_URL, {
+async function loadJsonArray(url, label) {
+  const response = await fetch(url, {
     headers: { Accept: 'application/json' },
     cf: { cacheTtl: 0, cacheEverything: false },
   });
-  if (!response.ok) throw new Error(`Unable to load watches: HTTP ${response.status}`);
-  const watches = await response.json();
-  if (!Array.isArray(watches)) throw new Error('watches.json must contain an array');
-  return watches;
+  if (!response.ok) throw new Error(`Unable to load ${label}: HTTP ${response.status}`);
+  const rows = await response.json();
+  if (!Array.isArray(rows)) throw new Error(`${label} must contain an array`);
+  return rows;
+}
+
+async function loadWatches() {
+  const [base, extra] = await Promise.all([
+    loadJsonArray(WATCHES_URL, 'watches.json'),
+    loadJsonArray(EXTRA_WATCHES_URL, 'extra-watches.json'),
+  ]);
+  const byId = new Map();
+  [...base, ...extra].forEach((watch) => byId.set(watch.id, watch));
+  return Array.from(byId.values());
 }
 
 function monitoredWatches(watches) {
