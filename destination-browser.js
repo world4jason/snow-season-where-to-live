@@ -3,10 +3,16 @@
     longest_run: '最長雪道',
     popularity: '人氣 Top 20',
     course_area_current: '面積 Top 20',
-    representative_scale: '大型／聯網',
+    representative_scale: '大型雪區',
   };
 
   const REGION_ORDER = ['北海道', '東北', '長野', '新潟', '關東', '中部・關西', '其他'];
+  const NIIGATA_AREA_ORDER = ['越後湯澤・南魚沼', '妙高・新井', '上越國際・六日町', '魚沼', '其他新潟'];
+  const YUZAWA_AREA_IDS = new Set(['echigo-yuzawa-jan', 'iwappara', 'kandatsu', 'maiko', 'kagura-naeba']);
+  const MYOKO_AREA_IDS = new Set(['myoko-kogen', 'lotte-arai']);
+  const JOETSU_AREA_IDS = new Set(['joetsu-kokusai']);
+  const UONUMA_AREA_IDS = new Set(['okutadami']);
+
   let tagOverlay = {};
   let browser = null;
   const browserState = {
@@ -27,6 +33,15 @@
     return '其他';
   }
 
+  function areaGroupOf(watch) {
+    if (regionOf(watch) !== '新潟') return regionOf(watch);
+    if (YUZAWA_AREA_IDS.has(watch.id)) return '越後湯澤・南魚沼';
+    if (MYOKO_AREA_IDS.has(watch.id)) return '妙高・新井';
+    if (JOETSU_AREA_IDS.has(watch.id)) return '上越國際・六日町';
+    if (UONUMA_AREA_IDS.has(watch.id)) return '魚沼';
+    return '其他新潟';
+  }
+
   function rankingTags(watch) {
     return [...new Set([
       ...(Array.isArray(watch?.ranking_tags) ? watch.ranking_tags : []),
@@ -45,7 +60,9 @@
     const watch = selectedWatch();
     const count = state.data?.watches?.length || 0;
     const label = watch?.name || '全部住宿區';
-    const meta = watch ? `${regionOf(watch)} · ${rankingTags(watch).length ? rankingTags(watch).map((tag) => TAG_LABELS[tag]).join(' / ') : '住宿搜尋區'}` : `${count} 個住宿 base · 點擊瀏覽`;
+    const meta = watch
+      ? `${areaGroupOf(watch)} · ${rankingTags(watch).length ? rankingTags(watch).map((tag) => TAG_LABELS[tag]).join(' / ') : '住宿搜尋區'}`
+      : `${count} 個住宿 base · 點擊瀏覽`;
 
     host.innerHTML = `
       <button id="destinationBrowserButton" class="destination-browser-button" type="button" aria-haspopup="dialog">
@@ -69,7 +86,7 @@
           <div>
             <span class="destination-browser-eyebrow">DESTINATION BROWSER</span>
             <h2 id="destinationBrowserTitle">選住宿區</h2>
-            <p>先用地區或榜單標籤縮小範圍，再選一個住宿 base 搜尋房價。</p>
+            <p>先用地區或榜單標籤縮小範圍；大型滑雪旅行區會再依實際住宿 base 分組。</p>
           </div>
           <button class="destination-browser-close" type="button" data-close-browser aria-label="關閉">×</button>
         </header>
@@ -162,7 +179,7 @@
       if (browserState.tag === 'monitored' && watch.auto_monitor !== true) return false;
       if (browserState.tag !== 'all' && browserState.tag !== 'monitored' && !rankingTags(watch).includes(browserState.tag)) return false;
       if (query) {
-        const haystack = `${watch.name || ''} ${watch.query || ''} ${(watch.covers || []).join(' ')} ${region}`.toLowerCase();
+        const haystack = `${watch.name || ''} ${watch.query || ''} ${(watch.covers || []).join(' ')} ${region} ${areaGroupOf(watch)}`.toLowerCase();
         if (!haystack.includes(query)) return false;
       }
       return true;
@@ -188,6 +205,35 @@
     `;
   }
 
+  function renderRegionGroups(watches, region) {
+    if (region !== '新潟') {
+      return `
+        <section class="destination-region-group">
+          <div class="destination-region-heading"><h3>${escapeHtml(region)}</h3><span>${watches.length}</span></div>
+          <div class="destination-region-grid">${watches.map(cardHtml).join('')}</div>
+        </section>
+      `;
+    }
+
+    const areaGroups = new Map();
+    watches.forEach((watch) => {
+      const area = areaGroupOf(watch);
+      if (!areaGroups.has(area)) areaGroups.set(area, []);
+      areaGroups.get(area).push(watch);
+    });
+
+    return NIIGATA_AREA_ORDER.filter((area) => areaGroups.has(area)).map((area) => `
+      <section class="destination-region-group destination-travel-area-group">
+        <div class="destination-region-heading">
+          <div><span class="destination-area-parent">新潟</span><h3>${escapeHtml(area)}</h3></div>
+          <span>${areaGroups.get(area).length}</span>
+        </div>
+        ${area === '越後湯澤・南魚沼' ? '<p class="destination-area-note">同一旅行圈，但保留越後湯澤站、岩原／神立、舞子、Mt. Naeba 等不同住宿 base，避免把接駁 7 分鐘和 40 分鐘的地點當成同一個搜尋中心。</p>' : ''}
+        <div class="destination-region-grid">${areaGroups.get(area).map(cardHtml).join('')}</div>
+      </section>
+    `).join('');
+  }
+
   function renderBrowser() {
     const root = ensureBrowser();
     const watches = filteredWatches();
@@ -201,7 +247,7 @@
       ['popularity', '人氣 Top 20'],
       ['course_area_current', '面積 Top 20'],
       ['longest_run', '最長雪道'],
-      ['representative_scale', '大型／聯網'],
+      ['representative_scale', '大型雪區'],
     ];
     root.querySelector('#destinationTagFilters').innerHTML = tagOptions.map(([value, label]) => `
       <button type="button" data-browser-tag="${value}" class="${browserState.tag === value ? 'active' : ''}">${label}</button>
@@ -223,12 +269,9 @@
       if (!groups.has(region)) groups.set(region, []);
       groups.get(region).push(watch);
     });
-    results.innerHTML = REGION_ORDER.filter((region) => groups.has(region)).map((region) => `
-      <section class="destination-region-group">
-        <div class="destination-region-heading"><h3>${region}</h3><span>${groups.get(region).length}</span></div>
-        <div class="destination-region-grid">${groups.get(region).map(cardHtml).join('')}</div>
-      </section>
-    `).join('');
+    results.innerHTML = REGION_ORDER.filter((region) => groups.has(region))
+      .map((region) => renderRegionGroups(groups.get(region), region))
+      .join('');
   }
 
   function openBrowser() {
