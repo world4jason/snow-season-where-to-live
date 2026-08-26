@@ -1,0 +1,13 @@
+{
+  "shiga-central": {"label":"志賀高原官方雪道圖","url":"https://www.shigakogen-ski.or.jp/english/index.php","zoom":12},
+  "shiga-east": {"label":"志賀高原官方雪道圖","url":"https://www.shigakogen-ski.or.jp/english/index.php","zoom":12},
+  "shiga-west": {"label":"志賀高原官方雪道圖","url":"https://www.shigakogen-ski.or.jp/english/index.php","zoom":12},
+  "shiga-south": {"label":"志賀高原官方雪道圖","url":"https://www.shigakogen-ski.or.jp/english/index.php","zoom":12},
+  "hakuba-village": {"label":"Hakuba Valley Trail Maps","url":"https://www.hakubavalley.com/en/ski_resort_info_en/","zoom":11},
+  "hakuba-otari": {"label":"Hakuba Valley Trail Maps","url":"https://www.hakubavalley.com/en/ski_resort_info_en/","zoom":12},
+  "hakuba-omachi": {"label":"Hakuba Valley Trail Maps","url":"https://www.hakubavalley.com/en/ski_resort_info_en/","zoom":12},
+  "niseko-united": {"label":"Niseko United Trail Map","url":"https://www.niseko.ne.jp/en/map/","zoom":12},
+  "appi-jan": {"label":"APPI Course Guide","url":"https://www.appi.co.jp/snow-mountain-resort/course/","zoom":13},
+  "echigo-yuzawa-jan": {"label":"YUZAWA SNOW LINK","url":"https://www.yuzawasnowlink.com/","zoom":12},
+  "kagura-naeba": {"label":"神樂／苗場官方","url":"https://www.princehotels.co.jp/ski/kagura/winter/","zoom":11}
+}
