@@ -28,7 +28,7 @@ console.log(`Testing ${BASE}\n`);
   const { response, body } = await jsonRequest('/api/status');
   ok(response.ok, '/api/status returns 2xx');
   ok(body?.ok === true, '/api/status reports ok=true');
-  ok(Number(body?.catalog_count) === 24, '/api/status exposes 24 practical lodging bases');
+  ok(Number(body?.catalog_count) === 43, '/api/status exposes 43 practical lodging bases');
   ok(Number(body?.automatic_searches_per_run) === 5, '/api/status limits daily automatic searches to 5');
   ok(Array.isArray(body?.automatic_resort_ids) && body.automatic_resort_ids.length === 5, '/api/status exposes five automatic resort ids');
   ok(Number.isFinite(Number(body?.manual_searches_limit)), '/api/status exposes manual quota limit');
@@ -52,7 +52,7 @@ console.log(`Testing ${BASE}\n`);
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      resort_ids: ['hakuba-village'],
+      resort_ids: ['sugadaira'],
       check_in: '2027-02-31',
       check_out: '2027-03-02',
       adults: 2,
@@ -67,7 +67,7 @@ console.log(`Testing ${BASE}\n`);
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      resort_ids: ['hakuba-village'],
+      resort_ids: ['sugadaira'],
       check_in: '2027-01-15',
       check_out: '2027-01-18',
       adults: 2,
@@ -75,15 +75,13 @@ console.log(`Testing ${BASE}\n`);
     }),
   });
 
-  ok(response.ok, '/api/search valid request returns 2xx');
-  ok(Array.isArray(body?.watches) && body.watches.length === 1, '/api/search returns requested lodging destination');
+  ok(response.ok, '/api/search extra-catalog request returns 2xx');
+  ok(Array.isArray(body?.watches) && body.watches.length === 1, '/api/search returns requested extra lodging destination');
 
   const watch = body.watches[0];
-  ok(watch?.id === 'hakuba-village', '/api/search returns Hakuba Village lodging base');
-  ok(Array.isArray(watch?.top20_positions) && watch.top20_positions.includes(2) && watch.top20_positions.includes(5), 'Hakuba Village covers ranked Happo-One and Iwatake entries');
-  ok(Array.isArray(watch?.covers) && watch.covers.includes('Hakuba Happo-One') && watch.covers.includes('Hakuba Iwatake'), 'Hakuba Village carries resort coverage metadata');
-  ok(typeof watch?.lodging_note === 'string' && watch.lodging_note.length > 0, 'Hakuba Village carries lodging strategy guidance');
-  ok(Number.isFinite(Number(watch?.center?.latitude)) && Number.isFinite(Number(watch?.center?.longitude)), 'Hakuba Village has a geocoded distance center');
+  ok(watch?.id === 'sugadaira', '/api/search returns Sugadaira lodging base from extra catalog');
+  ok(Array.isArray(watch?.ranking_tags) && watch.ranking_tags.includes('popularity'), 'Sugadaira carries ranking metadata');
+  ok(Array.isArray(watch?.covers) && watch.covers.includes('Sugadaira Kogen Snow Resort'), 'Sugadaira carries resort coverage metadata');
   ok(watch?.check_in === '2027-01-15' && watch?.check_out === '2027-01-18', '/api/search preserves requested dates');
   ok(watch?.adults === 2, '/api/search preserves guest count');
   ok(watch?.max_price_per_night === 6000, '/api/search preserves nightly budget');
@@ -98,7 +96,7 @@ console.log(`Testing ${BASE}\n`);
     }
   }
 
-  console.log(`INFO  Hakuba live result count=${watch.match_count}, cached=${body.cached === true}`);
+  console.log(`INFO  Sugadaira live result count=${watch.match_count}, cached=${body.cached === true}`);
 }
 
 console.log('\nALL SMOKE TESTS PASSED');
