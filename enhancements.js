@@ -45,7 +45,13 @@
   }
 
   function searchButtonLabel() {
-    return state.selectedResort === 'all' ? '更新每日監控' : '搜尋此住宿區';
+    return state.selectedResort === 'all'
+      ? `搜尋 ${monitoredWatches().length} 個監控區`
+      : '搜尋此住宿區';
+  }
+
+  function refreshButtonLabel() {
+    return state.selectedResort === 'all' ? '選一區刷新' : '強制刷新';
   }
 
   function decorateHotelCards() {
@@ -156,7 +162,6 @@
 
   function mountSearchControls() {
     syncDraftFromData();
-    const allWatches = state.data?.watches || [];
     const dateHost = document.querySelector('#searchDates');
     const guestHost = document.querySelector('#searchGuests');
     const budgetHost = document.querySelector('#searchBudget');
@@ -203,18 +208,32 @@
     guestsInput?.addEventListener('change', () => { draft.adults = Number(guestsInput.value); });
     budgetInput?.addEventListener('input', () => { draft.budget = Number(budgetInput.value); });
 
-    const button = document.querySelector('#liveSearchButton');
-    if (button && button.dataset.bound !== 'true') {
-      button.dataset.bound = 'true';
-      button.addEventListener('click', runLiveSearch);
+    const searchButton = document.querySelector('#liveSearchButton');
+    const refreshButton = document.querySelector('#liveRefreshButton');
+
+    if (searchButton && searchButton.dataset.bound !== 'true') {
+      searchButton.dataset.bound = 'true';
+      searchButton.addEventListener('click', () => runLiveSearch(false));
     }
-    if (button) button.textContent = searchButtonLabel();
+    if (refreshButton && refreshButton.dataset.bound !== 'true') {
+      refreshButton.dataset.bound = 'true';
+      refreshButton.addEventListener('click', () => runLiveSearch(true));
+    }
+
+    if (searchButton) searchButton.textContent = searchButtonLabel();
+    if (refreshButton) {
+      refreshButton.textContent = refreshButtonLabel();
+      refreshButton.disabled = state.selectedResort === 'all';
+      refreshButton.title = state.selectedResort === 'all'
+        ? '為避免一次消耗多筆額度，請先選單一住宿區再強制刷新。'
+        : '略過本站 6 小時快取與 SerpApi 1 小時快取，強制取得新結果。';
+    }
 
     const selected = selectedWatches()[0]?.name;
     const autoCount = monitoredWatches().length;
     setSearchStatus(state.selectedResort === 'all'
-      ? `全部頁只更新 ${autoCount} 個每日監控住宿區，保護免費額度`
-      : `只查 ${selected || '目前住宿區'}，一次約用 1 次 SerpApi`);
+      ? `搜尋會查 ${autoCount} 個每日監控區；強制刷新請先選單一住宿區。`
+      : `${selected || '目前住宿區'}：搜尋優先用快取；強制刷新最多消耗 1 次新查詢。`);
   }
 
   function setSearchStatus(message, type = '') {
@@ -225,14 +244,26 @@
     if (type) status.classList.add(type);
   }
 
-  async function runLiveSearch() {
+  function setActionBusy(busy, forceRefresh = false) {
+    const searchButton = document.querySelector('#liveSearchButton');
+    const refreshButton = document.querySelector('#liveRefreshButton');
+    if (searchButton) searchButton.disabled = busy;
+    if (refreshButton) refreshButton.disabled = busy || state.selectedResort === 'all';
+    if (busy) {
+      if (forceRefresh && refreshButton) refreshButton.textContent = '刷新中…';
+      if (!forceRefresh && searchButton) searchButton.textContent = '搜尋中…';
+    }
+  }
+
+  async function runLiveSearch(forceRefresh = false) {
     const apiBase = String(window.SNOW_API_BASE || '').replace(/\/$/, '');
     const checkIn = document.querySelector('#liveCheckIn')?.value || draft.checkIn || '';
     const checkOut = document.querySelector('#liveCheckOut')?.value || draft.checkOut || '';
     const adults = Number(document.querySelector('#liveGuests')?.value || draft.adults || 2);
     const budget = Number(document.querySelector('#liveBudget')?.value || draft.budget || 0);
-    const button = document.querySelector('#liveSearchButton');
-    const resortIds = requestedResortIds();
+    const resortIds = forceRefresh
+      ? (state.selectedResort === 'all' ? [] : [state.selectedResort])
+      : requestedResortIds();
 
     draft.checkIn = checkIn;
     draft.checkOut = checkOut;
@@ -240,6 +271,7 @@
     draft.budget = budget;
 
     if (!apiBase) return setSearchStatus('Cloudflare API 尚未設定', 'error');
+    if (forceRefresh && state.selectedResort === 'all') return setSearchStatus('強制刷新一次只允許 1 個住宿區，請先選一區。', 'error');
     if (!resortIds.length) return setSearchStatus('目前沒有可查詢的住宿區', 'error');
     if (!checkIn || !checkOut || checkOut <= checkIn) return setSearchStatus('請選有效的入住 / 退房日期', 'error');
 
@@ -248,11 +280,10 @@
     if (!Number.isInteger(adults) || adults < 1 || adults > 6) return setSearchStatus('旅客人數需為 1–6 人', 'error');
     if (!Number.isFinite(budget) || budget < 500 || budget > 30000) return setSearchStatus('每晚預算需為 NT$500–30,000', 'error');
 
-    if (button) {
-      button.disabled = true;
-      button.textContent = '搜尋中…';
-    }
-    setSearchStatus(`正在查 ${resortIds.length} 個住宿區…`);
+    setActionBusy(true, forceRefresh);
+    setSearchStatus(forceRefresh
+      ? '正在略過快取並取得最新房價…'
+      : `正在搜尋 ${resortIds.length} 個住宿區（優先使用快取）…`);
 
     try {
       const response = await fetch(`${apiBase}/api/search`, {
@@ -264,6 +295,7 @@
           check_out: checkOut,
           adults,
           max_price_per_night: budget,
+          force_refresh: forceRefresh,
         }),
       });
       const payload = await response.json();
@@ -296,16 +328,20 @@
         setSearchStatus(`已完成，但 ${failures.length} 個住宿區查詢失敗`, 'error');
       } else {
         const label = incoming.length === 1 ? incoming[0].name : `${incoming.length} 個每日監控住宿區`;
-        setSearchStatus(payload.cached ? `${label}：已載入 6 小時快取` : `${label}：已更新即時房價`, 'success');
+        if (forceRefresh) {
+          setSearchStatus(`${label}：已強制刷新最新結果`, 'success');
+        } else {
+          setSearchStatus(payload.cached ? `${label}：已載入 6 小時快取` : `${label}：已更新搜尋結果`, 'success');
+        }
       }
     } catch (error) {
       setSearchStatus(error instanceof Error ? error.message : String(error), 'error');
     } finally {
-      const currentButton = document.querySelector('#liveSearchButton');
-      if (currentButton) {
-        currentButton.disabled = false;
-        currentButton.textContent = searchButtonLabel();
-      }
+      setActionBusy(false, forceRefresh);
+      const searchButton = document.querySelector('#liveSearchButton');
+      const refreshButton = document.querySelector('#liveRefreshButton');
+      if (searchButton) searchButton.textContent = searchButtonLabel();
+      if (refreshButton) refreshButton.textContent = refreshButtonLabel();
     }
   }
 
