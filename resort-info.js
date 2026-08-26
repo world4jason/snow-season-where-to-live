@@ -33,14 +33,6 @@
     return (state.data?.watches || []).find((watch) => watch.id === state.selectedResort) || null;
   }
 
-  function searchCurrentConditions() {
-    mode = 'booking';
-    applyMode();
-    requestAnimationFrame(() => {
-      document.querySelector('#liveSearchButton')?.click();
-    });
-  }
-
   function tagsFor(watch) {
     if (!watch) return [];
     const values = new Set([
@@ -210,7 +202,6 @@
           <p>${escapeHtml(covers.join(' · '))}</p>
         </div>
         <div class="resort-info-actions">
-          <button id="resortInfoSearchStays" class="resort-info-search-cta" type="button">用目前條件找住宿</button>
           ${trailMap.url ? `<a href="${escapeHtml(trailMap.url)}" target="_blank" rel="noopener">官方雪道圖</a>` : ''}
           ${officialLinks.map((link) => `<a href="${escapeHtml(link.url)}" target="_blank" rel="noopener">${escapeHtml(link.label || '官方網站')}</a>`).join('')}
           <a href="${escapeHtml(googleMapsUrl(query))}" target="_blank" rel="noopener">Google Maps</a>
@@ -255,7 +246,6 @@
         </div>
       </div>
     `;
-    document.querySelector('#resortInfoSearchStays')?.addEventListener('click', searchCurrentConditions);
     renderTrailMap(watch);
   }
 
