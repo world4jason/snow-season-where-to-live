@@ -113,7 +113,6 @@ async function augmentWatch(env, watch, canFetchDiagnostics) {
     google_maps_search_url: areaMapsUrl,
   };
 
-  // Overwrite the same six-hour cache entry so future cache hits retain the diagnostic fields.
   if (refs.length && env.CACHE) {
     await env.CACHE.put(manualCacheKey(enhanced), JSON.stringify(enhanced), { expirationTtl: CACHE_TTL });
   }
@@ -139,10 +138,10 @@ async function enhancedSearch(request, env, ctx) {
   }
   if (!Array.isArray(payload?.watches)) return response;
 
-  // Only re-read the same SerpApi query after a fresh base search. SerpApi caches identical
-  // Google Hotels queries for one hour, so this diagnostic read is expected to be a free cache hit.
-  // For a legacy six-hour KV hit, do not spend a search just to diagnose it; Maps fallback still works.
-  const canFetchDiagnostics = payload.cached === false || requestBody?.force_refresh === true;
+  // Only re-read the exact same query after a normal fresh search. SerpApi's identical-query
+  // one-hour cache makes this diagnostic read free. Never do it after force_refresh=true,
+  // so a forced refresh remains capped at one deliberate SerpApi search.
+  const canFetchDiagnostics = payload.cached === false && requestBody?.force_refresh !== true;
   payload.watches = await Promise.all(payload.watches.map((watch) => augmentWatch(env, watch, canFetchDiagnostics)));
 
   return new Response(JSON.stringify(payload, null, 2), {
