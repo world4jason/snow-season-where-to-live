@@ -3,6 +3,7 @@
     'config/watches.json',
     'config/extra-watches.json',
   ];
+  const EXCLUSIONS_URL = 'config/excluded-resorts.json';
   const DYNAMIC_FIELDS = [
     'check_in',
     'check_out',
@@ -19,14 +20,23 @@
   ];
 
   async function loadCatalog() {
-    const groups = await Promise.all(CONFIG_URLS.map(async (url) => {
-      const response = await fetch(`${url}?v=${Date.now()}`);
-      if (!response.ok) throw new Error(`Unable to load ${url}`);
-      const rows = await response.json();
-      return Array.isArray(rows) ? rows : [];
-    }));
+    const [groups, exclusions] = await Promise.all([
+      Promise.all(CONFIG_URLS.map(async (url) => {
+        const response = await fetch(`${url}?v=${Date.now()}`);
+        if (!response.ok) throw new Error(`Unable to load ${url}`);
+        const rows = await response.json();
+        return Array.isArray(rows) ? rows : [];
+      })),
+      fetch(`${EXCLUSIONS_URL}?v=${Date.now()}`)
+        .then((response) => response.ok ? response.json() : [])
+        .catch(() => []),
+    ]);
+
+    const excludedIds = new Set((Array.isArray(exclusions) ? exclusions : []).map((row) => String(row.id)));
     const byId = new Map();
-    groups.flat().forEach((metadata) => byId.set(metadata.id, metadata));
+    groups.flat().forEach((metadata) => {
+      if (!excludedIds.has(String(metadata.id))) byId.set(metadata.id, metadata);
+    });
     return Array.from(byId.values());
   }
 
@@ -67,6 +77,9 @@
       return merged;
     });
 
+    if (state.selectedResort !== 'all' && !state.data.watches.some((watch) => watch.id === state.selectedResort)) {
+      state.selectedResort = 'all';
+    }
     renderAll();
   }
 
