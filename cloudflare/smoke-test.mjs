@@ -28,7 +28,9 @@ console.log(`Testing ${BASE}\n`);
   const { response, body } = await jsonRequest('/api/status');
   ok(response.ok, '/api/status returns 2xx');
   ok(body?.ok === true, '/api/status reports ok=true');
-  ok(Number.isFinite(Number(body?.automatic_searches_per_run)), '/api/status exposes automatic search count');
+  ok(Number(body?.catalog_count) === 20, '/api/status exposes 20 lodging destinations');
+  ok(Number(body?.automatic_searches_per_run) === 5, '/api/status limits daily automatic searches to 5');
+  ok(Array.isArray(body?.automatic_resort_ids) && body.automatic_resort_ids.length === 5, '/api/status exposes five automatic resort ids');
   ok(Number.isFinite(Number(body?.manual_searches_limit)), '/api/status exposes manual quota limit');
   if (body?.serpapi) {
     console.log(`INFO  SerpApi plan=${body.serpapi.plan_name ?? 'unknown'} usage=${body.serpapi.this_month_usage ?? '?'} left=${body.serpapi.total_searches_left ?? '?'}`);
@@ -41,6 +43,7 @@ console.log(`Testing ${BASE}\n`);
   const { response, body } = await jsonRequest('/api/latest');
   ok(response.ok, '/api/latest returns 2xx');
   ok(Array.isArray(body?.watches), '/api/latest has watches[]');
+  ok(body.watches.length <= 5, '/api/latest contains only automatic monitoring results');
   console.log(`INFO  latest watches=${body.watches.length} checked_at=${body.checked_at ?? 'never'}`);
 }
 
@@ -49,7 +52,7 @@ console.log(`Testing ${BASE}\n`);
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      resort_ids: ['teine-jan'],
+      resort_ids: ['hakuba-village'],
       check_in: '2027-02-31',
       check_out: '2027-03-02',
       adults: 2,
@@ -64,7 +67,7 @@ console.log(`Testing ${BASE}\n`);
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      resort_ids: ['teine-jan'],
+      resort_ids: ['hakuba-village'],
       check_in: '2027-01-15',
       check_out: '2027-01-18',
       adults: 2,
@@ -73,10 +76,13 @@ console.log(`Testing ${BASE}\n`);
   });
 
   ok(response.ok, '/api/search valid request returns 2xx');
-  ok(Array.isArray(body?.watches) && body.watches.length === 1, '/api/search returns requested resort');
+  ok(Array.isArray(body?.watches) && body.watches.length === 1, '/api/search returns requested lodging destination');
 
   const watch = body.watches[0];
-  ok(watch?.id === 'teine-jan', '/api/search returns Sapporo Teine');
+  ok(watch?.id === 'hakuba-village', '/api/search returns Hakuba Village lodging base');
+  ok(Array.isArray(watch?.top20_positions) && watch.top20_positions.includes(2) && watch.top20_positions.includes(5), 'Hakuba Village covers ranked Happo-One and Iwatake entries');
+  ok(typeof watch?.lodging_note === 'string' && watch.lodging_note.length > 0, 'Hakuba Village carries lodging strategy guidance');
+  ok(Number.isFinite(Number(watch?.center?.latitude)) && Number.isFinite(Number(watch?.center?.longitude)), 'Hakuba Village has a geocoded distance center');
   ok(watch?.check_in === '2027-01-15' && watch?.check_out === '2027-01-18', '/api/search preserves requested dates');
   ok(watch?.adults === 2, '/api/search preserves guest count');
   ok(watch?.max_price_per_night === 6000, '/api/search preserves nightly budget');
@@ -91,7 +97,7 @@ console.log(`Testing ${BASE}\n`);
     }
   }
 
-  console.log(`INFO  live result count=${watch.match_count}, cached=${body.cached === true}`);
+  console.log(`INFO  Hakuba live result count=${watch.match_count}, cached=${body.cached === true}`);
 }
 
 console.log('\nALL SMOKE TESTS PASSED');
