@@ -180,6 +180,67 @@
 }
 .google-maps-link:hover { border-color: #174ea6; background: #f5f8ff; }
 
+.budget-empty-state {
+  align-items: stretch;
+  text-align: left;
+}
+.budget-empty-state > h2,
+.budget-empty-state > p,
+.budget-empty-state > small {
+  width: 100%;
+}
+.budget-empty-state > small {
+  color: #667085;
+  font-size: 10px;
+  line-height: 1.5;
+}
+.budget-empty-actions {
+  width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+.budget-empty-actions a,
+.budget-reference-row a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #b7c5dd;
+  border-radius: 9px;
+  padding: 8px 10px;
+  background: #fff;
+  color: #174ea6;
+  text-decoration: none;
+  font-size: 10px;
+  font-weight: 850;
+}
+.budget-reference-list {
+  width: 100%;
+  display: grid;
+  gap: 7px;
+  margin: 8px 0;
+  padding: 12px;
+  border: 1px solid #d7e2f5;
+  border-radius: 12px;
+  background: #f8fbff;
+}
+.budget-reference-list > strong {
+  font-size: 11px;
+}
+.budget-reference-row {
+  display: grid;
+  grid-template-columns: minmax(0,1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+  color: #475467;
+  font-size: 10px;
+}
+.budget-reference-row b {
+  color: #101828;
+  white-space: nowrap;
+}
+
 @media (max-width: 1180px) {
   .interactive-search-bar { grid-template-columns: 1fr 1.6fr .65fr .75fr 1fr; }
   .date-picker-row { flex-wrap: wrap; }
@@ -208,4 +269,6 @@
   .search-submit-button,
   .search-refresh-button { min-height: 48px; }
   .lodging-strategy-note { grid-template-columns: 1fr; }
+  .budget-reference-row { grid-template-columns: 1fr; }
+  .budget-reference-row a { justify-self: start; }
 }
