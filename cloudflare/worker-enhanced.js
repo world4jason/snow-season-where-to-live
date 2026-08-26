@@ -1,6 +1,40 @@
 import baseWorker from './worker.js';
 
 const CACHE_TTL = 21600;
+const EXCLUSIONS_URL = 'https://raw.githubusercontent.com/world4jason/snow-season-where-to-live/main/config/excluded-resorts.json';
+let exclusionCache = { checkedAt: 0, ids: new Set() };
+
+function jsonResponse(payload, status = 200, headers = {}) {
+  return new Response(JSON.stringify(payload, null, 2), {
+    status,
+    headers: {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Access-Control-Allow-Origin': '*',
+      'Cache-Control': 'no-store',
+      ...headers,
+    },
+  });
+}
+
+async function excludedIds() {
+  if (Date.now() - exclusionCache.checkedAt < 300000) return exclusionCache.ids;
+  try {
+    const response = await fetch(EXCLUSIONS_URL, {
+      headers: { Accept: 'application/json' },
+      cf: { cacheTtl: 300, cacheEverything: true },
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const rows = await response.json();
+    exclusionCache = {
+      checkedAt: Date.now(),
+      ids: new Set((Array.isArray(rows) ? rows : []).map((row) => String(row?.id || '')).filter(Boolean)),
+    };
+  } catch {
+    // Keep the last known exclusion set if GitHub is temporarily unavailable.
+    exclusionCache.checkedAt = Date.now();
+  }
+  return exclusionCache.ids;
+}
 
 function mapsUrlForProperty(prop, watch) {
   const query = `${prop?.name || 'Hotel'}, ${watch?.name || watch?.query || 'Japan'}, Japan`;
@@ -119,7 +153,27 @@ async function augmentWatch(env, watch, canFetchDiagnostics) {
   return enhanced;
 }
 
+async function rejectExcludedSearch(request) {
+  let body;
+  try {
+    body = await request.clone().json();
+  } catch {
+    return null;
+  }
+  if (!Array.isArray(body?.resort_ids)) return null;
+  const excluded = await excludedIds();
+  const blocked = [...new Set(body.resort_ids.map(String).filter((id) => excluded.has(id)))];
+  if (!blocked.length) return null;
+  return jsonResponse({
+    error: 'Selected lodging area is excluded from the normal winter catalog',
+    excluded_resort_ids: blocked,
+  }, 400);
+}
+
 async function enhancedSearch(request, env, ctx) {
+  const blocked = await rejectExcludedSearch(request);
+  if (blocked) return blocked;
+
   let requestBody = null;
   try {
     requestBody = await request.clone().json();
@@ -150,11 +204,39 @@ async function enhancedSearch(request, env, ctx) {
   });
 }
 
+async function enhancedStatus(request, env, ctx) {
+  const response = await baseWorker.fetch(request, env, ctx);
+  if (!response.ok) return response;
+  let payload;
+  try {
+    payload = await response.clone().json();
+  } catch {
+    return response;
+  }
+
+  const excluded = await excludedIds();
+  const rawCatalogCount = Number(payload?.catalog_count || 0);
+  const activeCatalogCount = Math.max(0, rawCatalogCount - excluded.size);
+  payload.catalog_count_raw = rawCatalogCount;
+  payload.catalog_count = activeCatalogCount;
+  payload.excluded_resort_ids = [...excluded];
+  payload.estimated_full_catalog_refresh_cost = activeCatalogCount;
+  payload.estimated_monitored_refresh_cost = Number(payload?.automatic_searches_per_run || 0);
+
+  return new Response(JSON.stringify(payload, null, 2), {
+    status: response.status,
+    headers: response.headers,
+  });
+}
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     if (url.pathname === '/api/search' && request.method === 'POST') {
       return enhancedSearch(request, env, ctx);
+    }
+    if (url.pathname === '/api/status' && request.method === 'GET') {
+      return enhancedStatus(request, env, ctx);
     }
     return baseWorker.fetch(request, env, ctx);
   },
