@@ -38,8 +38,12 @@ console.log(`Testing ${BASE}\n`);
   const { response, body } = await jsonRequest('/api/status');
   ok(response.ok, '/api/status returns 2xx');
   ok(body?.ok === true, '/api/status reports ok=true');
-  ok(Number(body?.catalog_count) === 48, '/api/status exposes 48 practical lodging bases');
+  ok(Number(body?.catalog_count) === 46, '/api/status exposes 46 active winter lodging bases');
+  ok(Number(body?.catalog_count_raw) === 48, '/api/status preserves raw ranking-union catalog count');
+  ok(Array.isArray(body?.excluded_resort_ids) && body.excluded_resort_ids.includes('senjojiki') && body.excluded_resort_ids.includes('okutadami'), '/api/status exposes the two special-season exclusions');
+  ok(Number(body?.estimated_full_catalog_refresh_cost) === 46, '/api/status estimates full active-catalog refresh cost at 46 searches');
   ok(Number(body?.automatic_searches_per_run) === 5, '/api/status limits daily automatic searches to 5');
+  ok(Number(body?.estimated_monitored_refresh_cost) === 5, '/api/status estimates monitored refresh cost at 5 searches');
   ok(Array.isArray(body?.automatic_resort_ids) && body.automatic_resort_ids.length === 5, '/api/status exposes five automatic resort ids');
   ok(Number.isFinite(Number(body?.manual_searches_limit)), '/api/status exposes manual quota limit');
   ok(Number(body?.serpapi_pool?.key_count) >= 1, '/api/status exposes at least one configured SerpApi key');
@@ -66,6 +70,16 @@ console.log(`Testing ${BASE}\n`);
     body: JSON.stringify(searchBody({ check_in: '2027-02-31', check_out: '2027-03-02' })),
   });
   ok(response.status === 400, '/api/search rejects invalid calendar dates');
+}
+
+{
+  const { response, body } = await jsonRequest('/api/search', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(searchBody({ resort_ids: ['senjojiki'] })),
+  });
+  ok(response.status === 400, '/api/search rejects excluded spring-only Senjojiki');
+  ok(Array.isArray(body?.excluded_resort_ids) && body.excluded_resort_ids.includes('senjojiki'), 'excluded search response identifies Senjojiki');
 }
 
 {
@@ -97,16 +111,17 @@ console.log(`Testing ${BASE}\n`);
   ok(watch?.max_price_per_night === 6000, '/api/search preserves nightly budget');
   ok(Array.isArray(watch?.properties), 'result has properties[]');
   ok(Number(watch?.match_count) === watch.properties.length, 'match_count matches returned property count');
+  ok(typeof watch?.google_maps_search_url === 'string' && watch.google_maps_search_url.startsWith('https://www.google.com/maps/search/?api=1'), 'search result exposes lodging-area Google Maps reference');
 
   for (const property of watch.properties) {
-    ok(Number(property.nightly_price) <= 6000, `${property.name}: price respects budget`);
+    ok(Number(property.nightly_price) <= 6000, `${property.name}: price respects per-night budget`);
     ok(typeof property.google_maps_url === 'string' && property.google_maps_url.startsWith('https://www.google.com/maps/search/?api=1'), `${property.name}: Google Maps URL is valid shape`);
     if (property.latitude != null || property.longitude != null) {
       ok(Number.isFinite(Number(property.latitude)) && Number.isFinite(Number(property.longitude)), `${property.name}: coordinates are numeric`);
     }
   }
 
-  console.log(`INFO  Sugadaira live result count=${watch.match_count}, cached=${body.cached === true}`);
+  console.log(`INFO  Sugadaira live result count=${watch.match_count}, cached=${body.cached === true}, search_status=${watch.search_status ?? 'unknown'}`);
 }
 
 if (FORCE_REAL_REFRESH) {
